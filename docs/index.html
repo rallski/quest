@@ -185,6 +185,9 @@ textarea.field{resize:vertical;line-height:1.5}
 .qhead p{margin:2px 0 0;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
 .qfig{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
 .spark{width:120px;height:36px;flex:0 0 auto}
+.qgrid>.qcard{display:flex;flex-direction:column;gap:12px}
+.qcard .qfig{margin-top:auto}
+.qdesc{margin:-4px 0 0;color:var(--muted);font-size:12.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:calc(3 * 1.45em)}
 .qnew{border:1px dashed var(--line-2);border-radius:12px;display:grid;place-items:center;padding:16px;min-height:150px}
 .ms{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:13px}
 .ms::before{content:'◆';color:var(--accent);font-size:9px}
@@ -293,8 +296,8 @@ textarea.field{resize:vertical;line-height:1.5}
 .qpl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .addline .qp{padding:4px 8px}
 .addline .qp:not(.on) .qpl{display:none}
-.side-keys{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center}
-.side-keys kbd{justify-self:start}
+.side-keys{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center}
+.side-keys kbd{justify-self:end}
 .qmeta{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Plan endlos */
@@ -558,7 +561,7 @@ function renderSide(){
     ${activeQuests().map(q=>`<div class="side-q" data-go="quests"><span class="dot" style="--qc:${q.color}"></span><span class="t">${esc(q.title)}</span><span class="meta">${fmtH(m[q.id]||0)}</span></div>`).join('')||'<div class="muted" style="font-size:12px">Noch keine Quests.</div>'}
   </div>
   <div class="side-foot">
-    <div class="side-keys"><kbd>N</kbd><span>Neue Aufgabe</span><kbd>Strg K</kbd><span>Befehle</span><kbd>?</kbd><span>Alle Tastenkürzel</span></div>
+    <div class="side-keys"><span>Neue Aufgabe</span><kbd>N</kbd><span>Befehle</span><kbd>Strg K</kbd><span>Alle Tastenkürzel</span><kbd>?</kbd></div>
     <button class="btn sm ghost" id="settingsBtn" style="justify-self:start;padding-left:0">Einstellungen</button>
     <div id="sync">${syncText}</div>
   </div>`;
@@ -763,8 +766,9 @@ function vQuests(){
     const ms=S.milestones.filter(m=>m.questId===q.id).sort((a,b)=>b.date<a.date?-1:1);
     const ex=openQuests.has(q.id);const tg=(+q.target||0)*3600;
     return `<div class="card qcard" style="--qc:${q.color}" draggable="true" data-qid="${q.id}" tabindex="0" aria-label="Quest ${esc(q.title)}, mit Alt + Pfeiltasten verschieben">
-      <div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2>${q.desc?`<p>${esc(q.desc)}</p>`:''}</div><button class="btn sm ghost" data-editq="${q.id}">Bearbeiten</button></div>
-      <div class="qfig"><div><div class="big num">${fmtH(wk)}</div><div class="label" style="margin-top:4px">diese Woche${tg?` · Ziel ${fmtDec(tg)}h`:''}</div></div><div style="text-align:right">${sparkline(series,q.color)}<div class="meta">${fmtH(all)} gesamt</div></div></div>
+      <div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2></div><button class="btn sm ghost" data-editq="${q.id}">Bearbeiten</button></div>
+      ${q.desc?`<p class="qdesc" title="${esc(q.desc)}">${esc(q.desc)}</p>`:''}
+      <div class="qfig"><div><div class="big num">${fmtH(wk)}</div><div class="label" style="margin-top:4px;white-space:nowrap">diese Woche${tg?` · Ziel ${fmtDec(tg)}h`:''}</div></div><div style="text-align:right">${sparkline(series,q.color)}<div class="meta">${fmtH(all)} gesamt</div></div></div>
       ${tg?`<div class="prog"><i style="width:${Math.min(100,wk/tg*100)}%;background:${q.color}"></i></div>`:''}
       <button class="fold ${ex?'open':''}" data-qopen="${q.id}" style="min-width:0">${CHEV}<span class="qmeta">${open.length===1?'1 offene Aufgabe':open.length+' offene Aufgaben'} · ${ms.length===1?'1 Meilenstein':ms.length+' Meilensteine'}</span></button>
       ${ex?`<div style="display:grid;gap:12px">

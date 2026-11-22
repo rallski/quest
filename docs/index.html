@@ -1094,7 +1094,8 @@ function showLogin(note){
     const {data,error}=await sb.auth.signInWithPassword({email:$('#lgE').value.trim(),password:$('#lgP').value});
     if(error)return w(de(error.message));closeModal();onSignedIn(data.user)};
   $('#lgS').onclick=async()=>{const email=$('#lgE').value.trim(),password=$('#lgP').value;if(!email||password.length<6)return w('Gib E-Mail und ein Passwort mit mindestens 6 Zeichen ein.');w('Lege Konto an …');
-    const {data,error}=await sb.auth.signUp({email,password});
+    const back=/^https?:/.test(location.href)?location.origin+location.pathname:undefined;
+    const {data,error}=await sb.auth.signUp({email,password,options:back?{emailRedirectTo:back}:{}});
     if(error)return w(de(error.message));
     if(data.session){closeModal();onSignedIn(data.user)}else w('Fast fertig: Öffne den Link in der E-Mail, die gerade kam, und melde dich danach hier an.')};
   setTimeout(()=>$('#lgE')?.focus(),0);

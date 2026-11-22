@@ -284,6 +284,19 @@ textarea.field{resize:vertical;line-height:1.5}
 .col .addwrap .pos button{line-height:24px;padding:0 5px}
 .select-sm{border:1px solid var(--line-2);background:var(--bg);border-radius:7px;padding:2px 6px;font-size:12px;color:var(--muted)}
 
+/* Quest-Auswahl als farbige Chips */
+.qpick{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.qp{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--raised);border-radius:99px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:var(--muted);max-width:100%}
+.qp:hover{color:var(--fg)}
+.qp .dot{background:var(--qc)}
+.qp.on{border-color:var(--qc);color:var(--fg);background:color-mix(in srgb,var(--qc) 16%,var(--panel))}
+.qpl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addline .qp{padding:4px 8px}
+.addline .qp:not(.on) .qpl{display:none}
+.side-keys{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center}
+.side-keys kbd{justify-self:start}
+.qmeta{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* Plan endlos */
 .week.endless{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:var(--colw,210px);scroll-snap-type:x proximity;scroll-behavior:auto}
 .week.endless .col{scroll-snap-align:start}
@@ -528,6 +541,10 @@ function render(){
   bind();
   if(view==='plan')placePlanScroll();
 }
+// Quest-Auswahl als farbige Chips; Wert lesen mit qpVal('#id')
+const questPicker=(id,sel)=>`<div class="qpick" id="${id}" role="radiogroup" aria-label="Quest">${[{id:'',title:'Andere',color:'var(--other)'},...activeQuests()].map(q=>`<button type="button" role="radio" aria-checked="${(sel||'')===q.id}" class="qp ${(sel||'')===q.id?'on':''}" data-qp="${q.id}" style="--qc:${q.color}" title="${esc(q.title)}"><span class="dot"></span>${q.icon?esc(q.icon)+' ':''}<span class="qpl">${esc(q.title)}</span></button>`).join('')}</div>`;
+const qpVal=sel=>document.querySelector(sel+' .qp.on')?.dataset.qp||'';
+document.addEventListener('click',e=>{const b=e.target.closest('[data-qp]');if(!b)return;b.parentElement.querySelectorAll('.qp').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',String(x===b))})});
 // Schalter, ob neue Aufgaben oben oder unten eingefügt werden (gilt überall)
 const posToggle=()=>`<span class="pos" role="group" aria-label="Neue Aufgaben einfügen"><button type="button" data-pos="top" class="${ui.addPos==='top'?'on':''}" title="Oben einfügen" aria-label="Oben einfügen">⤒</button><button type="button" data-pos="bottom" class="${ui.addPos!=='top'?'on':''}" title="Unten einfügen" aria-label="Unten einfügen">⤓</button></span>`;
 
@@ -541,7 +558,7 @@ function renderSide(){
     ${activeQuests().map(q=>`<div class="side-q" data-go="quests"><span class="dot" style="--qc:${q.color}"></span><span class="t">${esc(q.title)}</span><span class="meta">${fmtH(m[q.id]||0)}</span></div>`).join('')||'<div class="muted" style="font-size:12px">Noch keine Quests.</div>'}
   </div>
   <div class="side-foot">
-    <span><kbd>N</kbd> Neue Aufgabe &nbsp; <kbd>Strg K</kbd> Befehle</span>
+    <div class="side-keys"><kbd>N</kbd><span>Neue Aufgabe</span><kbd>Strg K</kbd><span>Befehle</span><kbd>?</kbd><span>Alle Tastenkürzel</span></div>
     <button class="btn sm ghost" id="settingsBtn" style="justify-self:start;padding-left:0">Einstellungen</button>
     <div id="sync">${syncText}</div>
   </div>`;
@@ -578,7 +595,7 @@ function vHeute(){
         <div class="tlist" data-drop-day="${k}">
           ${qOpen.length?qOpen.map((t,i)=>taskRow(t,{first:i===0&&!ui.questFilter&&!od.some(x=>x.questId),today:true})).join(''):`<div class="empty">${ui.questFilter?'Für diese Quest ist heute nichts geplant.':'Leg die Aufgabe, die eine Quest am weitesten bringt, ganz nach oben.'}</div>`}
         </div>
-        <form class="addline" id="addToday"><input class="field" id="addTitle" placeholder="Aufgabe für heute …" autocomplete="off"><select class="field" id="addQuest" aria-label="Quest">${questOptions(ui.questFilter||lastQuest)}</select>${posToggle()}<button class="btn accent" aria-label="Hinzufügen">+</button></form>
+        <form class="addline" id="addToday"><input class="field" id="addTitle" placeholder="Aufgabe für heute …" autocomplete="off">${questPicker('addQuest',ui.questFilter||lastQuest)}${posToggle()}<button class="btn accent" aria-label="Hinzufügen">+</button></form>
         <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:8px">
           <button class="fold ${ui.othersOpen?'open':''}" id="foldOthers">${CHEV}<span class="label">Andere Aufgaben · ${oOpen.length}</span><span class="meta" style="margin-left:6px">ein- und ausblenden mit V</span></button>
           ${ui.othersOpen?`<div class="tlist" data-drop-day="${k}" style="margin-top:6px">${oOpen.map(t=>taskRow(t,{today:true,pill:false})).join('')||'<div class="empty">Keine.</div>'}</div>`:''}
@@ -637,7 +654,7 @@ function vPlan(){
   <div class="card backlog" data-drop-day="">
     <div class="row between" style="margin-bottom:10px"><span class="label">Backlog · ohne Tag</span><span class="meta">auf einen Tag ziehen, um es einzuplanen</span></div>
     <div class="tlist">${backlog().map(t=>taskRow(t)).join('')||'<div class="empty">Leer.</div>'}</div>
-    <form class="addline" id="addBacklog"><input class="field" id="addBacklogIn" placeholder="Aufgabe ins Backlog …" autocomplete="off"><select class="field" id="addBacklogQ" aria-label="Quest">${questOptions()}</select><button class="btn" aria-label="Hinzufügen">+</button></form>
+    <form class="addline" id="addBacklog"><input class="field" id="addBacklogIn" placeholder="Aufgabe ins Backlog …" autocomplete="off">${questPicker('addBacklogQ','')}<button class="btn" aria-label="Hinzufügen">+</button></form>
   </div>`;
 }
 // Scrollposition im Plan halten, beim Rand nachladen
@@ -749,7 +766,7 @@ function vQuests(){
       <div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2>${q.desc?`<p>${esc(q.desc)}</p>`:''}</div><button class="btn sm ghost" data-editq="${q.id}">Bearbeiten</button></div>
       <div class="qfig"><div><div class="big num">${fmtH(wk)}</div><div class="label" style="margin-top:4px">diese Woche${tg?` · Ziel ${fmtDec(tg)}h`:''}</div></div><div style="text-align:right">${sparkline(series,q.color)}<div class="meta">${fmtH(all)} gesamt</div></div></div>
       ${tg?`<div class="prog"><i style="width:${Math.min(100,wk/tg*100)}%;background:${q.color}"></i></div>`:''}
-      <button class="fold ${ex?'open':''}" data-qopen="${q.id}">${CHEV}<span class="label">Meilensteine ${ms.length} · offene Aufgaben ${open.length}</span></button>
+      <button class="fold ${ex?'open':''}" data-qopen="${q.id}" style="min-width:0">${CHEV}<span class="qmeta">${open.length===1?'1 offene Aufgabe':open.length+' offene Aufgaben'} · ${ms.length===1?'1 Meilenstein':ms.length+' Meilensteine'}</span></button>
       ${ex?`<div style="display:grid;gap:12px">
         <div>${ms.map(m=>`<div class="ms"><span class="t">${esc(m.title)}</span><span class="meta">${fmtDM(m.date)}</span><button class="btn sm ghost" data-delms="${m.id}" aria-label="Meilenstein entfernen">✕</button></div>`).join('')||'<div class="muted" style="font-size:12.5px">Halte hier fest, was du erreicht hast.</div>'}
           <form class="addline" data-addms="${q.id}"><input class="field" placeholder="Meilenstein erreicht …" autocomplete="off" aria-label="Meilenstein"><button class="btn sm">◆</button></form></div>
@@ -846,11 +863,11 @@ function bind(){
   on('[data-edit]','click',e=>editTask(e.currentTarget.dataset.edit));
   one('#rollAll',el=>el.onclick=()=>{const k=today();let o=nextOrder(k);overdue().forEach(t=>{t.day=k;t.order=o++});commit()});
   one('#foldOthers',el=>el.onclick=()=>{ui.othersOpen=!ui.othersOpen;saveUi();render()});
-  one('#addToday',el=>el.onsubmit=e=>{e.preventDefault();lastQuest=$('#addQuest').value;addTask($('#addTitle').value,lastQuest,today());setTimeout(()=>$('#addTitle')?.focus(),0)});
+  one('#addToday',el=>el.onsubmit=e=>{e.preventDefault();lastQuest=qpVal('#addQuest');addTask($('#addTitle').value,lastQuest,today());setTimeout(()=>$('#addTitle')?.focus(),0)});
   one('#sideNewQuest',el=>el.onsubmit=e=>{e.preventDefault();newQuest($('#sideNewQuestIn').value)});
   one('#newQuest',el=>el.onsubmit=e=>{e.preventDefault();newQuest($('#newQuestIn').value);setTimeout(()=>$('#newQuestIn')?.focus(),0)});
   on('[data-addday]','keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const d=e.currentTarget.dataset.addday;planHold=true;addTask(e.currentTarget.value,null,d);setTimeout(()=>document.querySelector(`[data-addday="${d}"]`)?.focus({preventScroll:true}),0)});
-  one('#addBacklog',el=>el.onsubmit=e=>{e.preventDefault();addTask($('#addBacklogIn').value,$('#addBacklogQ').value,null);setTimeout(()=>$('#addBacklogIn')?.focus(),0)});
+  one('#addBacklog',el=>el.onsubmit=e=>{e.preventDefault();addTask($('#addBacklogIn').value,qpVal('#addBacklogQ'),null);setTimeout(()=>$('#addBacklogIn')?.focus(),0)});
   one('#recurBtn',el=>el.onclick=openRecurring);
   on('[data-pscroll]','click',e=>{const v=+e.currentTarget.dataset.pscroll;const w=$('.week.endless');if(!w)return;
     if(!v){planScrollTo(addDays(today(),-1),true);return}w.scrollBy({left:v*(colW()+8),behavior:'smooth'})});
@@ -919,11 +936,12 @@ function dayOptions(sel){
 function quickAdd(){
   modal(`<form class="card form" id="qa"><div class="label">Neue Aufgabe</div>
     <input class="field" id="qaT" placeholder="Was ist zu tun?" autocomplete="off" style="font-size:16px">
-    <div class="row"><label>Quest<select class="field" id="qaQ">${questOptions(lastQuest)}</select></label><label>Tag<select class="field" id="qaD">${dayOptions(today())}</select></label></div>
+    <div class="sec"><span class="label">Quest</span>${questPicker('qaQ',lastQuest)}</div>
+    <label>Tag<select class="field" id="qaD">${dayOptions(today())}</select></label>
     <label class="row" style="color:var(--fg);font-size:13px;display:flex"><input type="checkbox" id="qaF"> Ganz nach oben setzen</label>
     <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" id="qaC">Abbrechen</button><button class="btn accent">Anlegen</button></div></form>`);
   $('#qaC').onclick=closeModal;
-  $('#qa').onsubmit=e=>{e.preventDefault();lastQuest=$('#qaQ').value;const d=$('#qaD').value||null;const f=$('#qaF').checked;const t=$('#qaT').value;closeModal();if(addTask(t,lastQuest,d,f))toast('Aufgabe angelegt')};
+  $('#qa').onsubmit=e=>{e.preventDefault();lastQuest=qpVal('#qaQ');const d=$('#qaD').value||null;const f=$('#qaF').checked;const t=$('#qaT').value;closeModal();if(addTask(t,lastQuest,d,f))toast('Aufgabe angelegt')};
   setTimeout(()=>$('#qaT').focus(),0);
 }
 // ================= Aufgaben-Panel (speichert automatisch) =================

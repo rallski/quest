@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quest</title>
+<meta name="theme-color" content="#0f1012">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: schmale Navigationsleiste links, Arbeitsfläche rechts; dunkel zuerst, eine warme Akzentfarbe für „Quest-Stunden“ */
+:root{
+  --bg:#0f1012; --panel:#16171a; --raised:#1c1d21; --line:#26282d; --line-2:#33363c;
+  --fg:#ececee; --muted:#8b8d94; --faint:#5d6068;
+  --accent:#f2b84b; --accent-ink:#1a1408; --accent-soft:rgba(242,184,75,.12);
+  --good:#7fcf8a; --danger:#f07a6a; --other:#4a4d55;
+  --sans:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'Geist Mono',ui-monospace,'SF Mono',Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#f6f6f4; --panel:#ffffff; --raised:#f0f0ed; --line:#e4e4df; --line-2:#d4d4ce;
+  --fg:#18191b; --muted:#6b6d72; --faint:#a2a4a8;
+  --accent:#b87a12; --accent-ink:#ffffff; --accent-soft:rgba(184,122,18,.1);
+  --good:#2f8a3e; --danger:#c2412f; --other:#c9cac6; color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#f6f6f4; --panel:#ffffff; --raised:#f0f0ed; --line:#e4e4df; --line-2:#d4d4ce;
+  --fg:#18191b; --muted:#6b6d72; --faint:#a2a4a8;
+  --accent:#b87a12; --accent-ink:#ffffff; --accent-soft:rgba(184,122,18,.1);
+  --good:#2f8a3e; --danger:#c2412f; --other:#c9cac6; color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.num,.meta,.clock,kbd{font-variant-numeric:tabular-nums}
+
+.shell{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:100vh}
+aside{border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh;overflow:auto;background:var(--panel)}
+main{padding-block:26px 100px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:0}
+@media (min-width:861px){main{padding-left:max(36px,env(safe-area-inset-left,0px));padding-right:max(36px,env(safe-area-inset-right,0px))}}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:20px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;padding:2px 8px;letter-spacing:-.01em}
+.brand svg{width:20px;height:20px}
+.nav{display:grid;gap:1px}
+.nav button{display:flex;justify-content:space-between;align-items:center;border:0;background:none;padding:7px 9px;border-radius:7px;cursor:pointer;color:var(--muted);text-align:left}
+.nav button:hover{background:var(--raised);color:var(--fg)}
+.nav button.on{background:var(--raised);color:var(--fg)}
+kbd{font-family:var(--mono);font-size:10.5px;color:var(--faint);border:1px solid var(--line-2);border-radius:4px;padding:0 4px;line-height:16px}
+.label{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.muted{color:var(--muted)}
+.side-block{display:grid;gap:6px;padding:0 8px}
+.side-q{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:3px 0}
+.side-q .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.side-q:hover .t{color:var(--fg)}
+.side-foot{margin-top:auto;display:grid;gap:6px;font-size:12px;color:var(--muted);padding:0 8px}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;display:inline-block;background:var(--qc,var(--other))}
+.prog{height:5px;background:var(--raised);border-radius:9px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:9px}
+
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-size:clamp(22px,3vw,28px);font-weight:600;letter-spacing:-.02em;margin:2px 0 0;text-wrap:balance}
+h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.grid2{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:20px;align-items:start}
+.stack{display:grid;gap:16px;min-width:0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.between{justify-content:space-between}
+.btn{border:1px solid var(--line-2);background:var(--raised);padding:6px 12px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap;font-size:13px}
+.btn:hover{border-color:var(--faint)}
+.btn.accent{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.btn.ghost:hover{color:var(--fg);background:var(--raised)}
+.btn.sm{padding:3px 8px;font-size:12px;border-radius:6px}
+.btn.danger{color:var(--danger)}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:none;padding:5px 11px;cursor:pointer;color:var(--muted);font-size:13px}
+.seg button.on{background:var(--raised);color:var(--fg)}
+.field{width:100%;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--bg)}
+textarea.field{resize:vertical;line-height:1.5}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--qc,var(--muted));background:color-mix(in srgb,var(--qc,var(--muted)) 14%,transparent);padding:1px 7px 1px 6px;border-radius:99px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--qc,var(--muted));flex:0 0 auto}
+
+/* Aufgaben */
+.tlist{display:grid;gap:4px}
+.task{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:var(--raised);border:1px solid transparent;cursor:grab;min-width:0}
+.task:hover{border-color:var(--line-2)}
+.task.drag-over{border-color:var(--accent);border-style:dashed}
+.task.dragging{opacity:.4}
+.task .body{flex:1;min-width:0;cursor:pointer;display:grid;gap:2px}
+.task .t{overflow-wrap:anywhere}
+.task.done{background:none;cursor:default}
+.task.done .t{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.task .acts{display:flex;gap:2px;opacity:0}
+.task:hover .acts,.task:focus-within .acts{opacity:1}
+@media (hover:none){.task .acts{opacity:1}}
+.task.first{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent);padding:12px}
+.task.first .t{font-weight:500;font-size:15px}
+.check{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--faint);background:none;cursor:pointer;flex:0 0 auto;display:grid;place-items:center;padding:0}
+.check svg{width:11px;height:11px}
+.check path{stroke:var(--bg);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
+.check:hover{border-color:var(--good)}
+.check.on{background:var(--good);border-color:var(--good)}
+.check.on path{stroke-dashoffset:0}
+.task.completing .check{background:var(--good);border-color:var(--good);animation:pop .35s ease}
+.task.completing .check path{stroke-dashoffset:0;transition:stroke-dashoffset .3s ease .05s}
+.task.completing{animation:fadeout .4s ease .45s forwards}
+@keyframes pop{40%{transform:scale(1.25)}}
+@keyframes fadeout{to{opacity:.3}}
+.addline{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.addline input{flex:1 1 170px;min-width:0}
+.addline select{max-width:38%}
+.fold{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--muted);cursor:pointer;padding:4px 0;font:inherit}
+.fold svg{width:10px;height:10px;transition:transform .15s}
+.fold.open svg{transform:rotate(90deg)}
+.empty{color:var(--muted);padding:12px 4px;font-size:13px}
+
+/* Plan */
+.week{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px}
+.col{display:flex;flex-direction:column;gap:5px;min-height:280px;border-radius:10px;padding:4px;border:1px dashed transparent}
+.col.drag-over{border-color:var(--accent)}
+.col.past{opacity:.55}
+.col-head{display:flex;justify-content:space-between;align-items:baseline;padding:4px 6px 8px;border-bottom:2px solid var(--line);margin-bottom:4px}
+.col.today .col-head{border-bottom-color:var(--accent)}
+.col-head b{font-weight:600;font-size:13px}
+.col input{font-size:12.5px;padding:6px 8px;border:1px solid var(--line);background:var(--panel);border-radius:7px;width:100%}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 9px;display:grid;gap:6px;cursor:grab;font-size:12.5px;position:relative}
+.pcard::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--qc,transparent)}
+.pcard:hover{border-color:var(--line-2)}
+.pcard .t{overflow-wrap:anywhere;hyphens:auto;cursor:pointer;line-height:1.35}
+.pcard .foot{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.pcard.done{opacity:.45;cursor:default}
+.pcard.done .t{text-decoration:line-through}
+.pcard.drag-over{border-color:var(--accent);border-style:dashed}
+.pcard .check{width:15px;height:15px}
+.pcard .check svg{width:9px;height:9px}
+.backlog .tlist{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+
+/* Kalender / Logbuch */
+.tl-wrap{overflow-x:auto}
+.tl{display:grid;gap:0 6px;min-width:0}
+.tl-head{font-size:12px;padding:0 2px 8px;display:flex;justify-content:space-between;gap:4px}
+.tl-head b{font-weight:600}
+.tl-hours{position:relative}
+.tl-hours span{position:absolute;right:6px;transform:translateY(-50%);font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.tl-col{position:relative;border-radius:8px;background-color:var(--panel);background-image:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px var(--pph));border:1px solid var(--line)}
+.blk{position:absolute;left:3px;right:3px;border:0;border-radius:5px;padding:3px 6px;text-align:left;cursor:pointer;overflow:hidden;background:color-mix(in srgb,var(--qc) 22%,var(--panel));border-left:3px solid var(--qc);display:grid;align-content:start;gap:0;font-size:11.5px;line-height:1.25;color:var(--fg)}
+.blk:hover{background:color-mix(in srgb,var(--qc) 32%,var(--panel))}
+.blk b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blk span{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.blk.run{background-image:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--qc) 18%,transparent) 6px 12px);cursor:default}
+.now{position:absolute;left:0;right:0;height:2px;background:var(--danger);z-index:2}
+.now::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--danger)}
+
+/* Fokus */
+.focus{min-height:calc(100vh - 160px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:20px 0}
+.focus-title{font-size:clamp(20px,3vw,26px);font-weight:500;margin:0;max-width:640px;overflow-wrap:anywhere;letter-spacing:-.01em}
+.clock{font-family:var(--mono);font-size:clamp(64px,13vw,120px);font-weight:500;letter-spacing:-.05em;line-height:1;margin-top:8px}
+.clock.paused{color:var(--muted)}
+.clock-state{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.clock-state.run{color:var(--accent)}
+.focus .btn{padding:8px 18px;font-size:14px}
+.focus textarea{max-width:520px;margin-top:18px;background:transparent;min-height:84px}
+
+/* Quests */
+.vision{display:grid;gap:8px}
+.vision textarea{background:transparent;border-color:var(--line);font-size:15px}
+.chain{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.chain b{color:var(--fg);font-weight:500}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.stats>div{padding:14px 16px;display:grid;gap:4px;min-width:0}
+.stats>div+div{border-left:1px solid var(--line)}
+.big{font-size:26px;font-weight:500;letter-spacing:-.02em;line-height:1.1}
+.big small{font-size:13px;color:var(--muted);font-weight:400;margin-left:3px}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.qcard{display:grid;gap:12px;align-content:start}
+.qhead{display:flex;gap:10px;align-items:flex-start}
+.qicon{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:color-mix(in srgb,var(--qc) 16%,transparent);flex:0 0 auto}
+.qicon i{width:10px;height:10px;border-radius:50%;background:var(--qc)}
+.qhead .grow{flex:1;min-width:0}
+.qhead p{margin:2px 0 0;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.qfig{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.spark{width:120px;height:36px;flex:0 0 auto}
+.qnew{border:1px dashed var(--line-2);border-radius:12px;display:grid;place-items:center;padding:16px;min-height:150px}
+.ms{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:13px}
+.ms::before{content:'◆';color:var(--accent);font-size:9px}
+.ms .t{flex:1;min-width:0;overflow-wrap:anywhere}
+
+/* Review */
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kpi{display:grid;gap:6px;align-content:start}
+.kpi .v{font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:1.05}
+.kpi .v.hl{color:var(--accent)}
+.kpi .v small{font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0}
+.rgrid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:end;height:170px;margin-top:12px}
+.daybar{display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:5px;text-align:center;min-width:0}
+.daybar .b{display:flex;flex-direction:column-reverse;border-radius:5px;overflow:hidden;min-height:2px;background:var(--raised)}
+.daybar.today .meta:last-child{color:var(--accent)}
+.hbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;font-size:13px}
+.hbar .track{grid-column:1/-1;height:6px;background:var(--raised);border-radius:9px;overflow:hidden}
+.hbar .track i{display:block;height:100%;border-radius:9px;background:var(--qc)}
+.split{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--raised);margin-top:10px}
+.split i{display:block;height:100%}
+.chart{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-family:var(--mono);font-size:11px}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.prompts{margin:0;padding-left:18px;color:var(--muted);font-size:13px;display:grid;gap:2px}
+
+/* Overlays */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:10vh max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));z-index:20;overflow:auto}
+.overlay .card{width:100%;max-width:500px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.cmd input{border:0;background:none;font-size:16px;width:100%;padding:4px 2px 12px;border-bottom:1px solid var(--line);outline:none}
+.cmd-list{max-height:50vh;overflow:auto;margin-top:8px}
+.cmd-item{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer}
+.cmd-item.sel{background:var(--raised)}
+.form{display:grid;gap:12px}
+.form label{font-size:12px;color:var(--muted);display:grid;gap:4px}
+.form .row label{flex:1;min-width:120px}
+.sesrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto minmax(0,1fr) 52px auto;gap:6px;align-items:center}
+.sesrow .field{padding:5px 6px;font-size:12.5px}
+.sesrow .dur{text-align:right}
+@media (max-width:520px){.sesrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto minmax(0,1fr) auto}.sesrow .dur{display:none}.sesrow input[type=date]{grid-column:1/-1}}
+.wd{display:flex;gap:4px;flex-wrap:wrap}
+.wd label{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0}
+.wd input{position:absolute;opacity:0;pointer-events:none}
+.wd span{display:inline-block;padding:4px 9px;border:1px solid var(--line-2);border-radius:7px;cursor:pointer;font-size:12px;color:var(--muted)}
+.wd input:checked+span{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
+.wd input:focus-visible+span{outline:2px solid var(--accent)}
+.toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:9px;font-size:13px;z-index:30;display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px)}
+.toast button{background:none;border:0;color:var(--accent);cursor:pointer;font-weight:600}
+
+.mobile-nav{display:none}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  aside{display:none}
+  .grid2,.rgrid{grid-template-columns:minmax(0,1fr)}
+  .mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);z-index:15;padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+  .mobile-nav button{flex:1;border:0;background:none;padding:8px 0;font-size:11.5px;color:var(--muted);border-radius:7px;min-width:0}
+  .mobile-nav button.on{color:var(--fg);background:var(--raised)}
+  .kpi .v{font-size:22px}
+  .stats .big{font-size:20px}
+  .addline select{max-width:45%}
+}
+@media (max-width:520px){.kpis{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.kpis .kpi:first-child{grid-column:1/-1}}
+/* Animationen */
+@keyframes fadeIn{from{opacity:0}}
+@keyframes popIn{from{opacity:0;transform:translateY(6px) scale(.98)}}
+@keyframes slideIn{from{transform:translateX(24px);opacity:0}}
+.overlay{animation:fadeIn .14s ease}
+.overlay>.card{animation:popIn .18s cubic-bezier(.2,.8,.2,1)}
+
+/* Aufgaben-Panel */
+.sheet-back{position:fixed;inset:0;z-index:17;background:rgba(0,0,0,.25);animation:fadeIn .14s}
+.sheet{position:fixed;top:0;right:0;bottom:0;z-index:18;width:min(420px,100%);background:var(--panel);border-left:1px solid var(--line);box-shadow:-20px 0 50px rgba(0,0,0,.3);display:flex;flex-direction:column;animation:slideIn .2s cubic-bezier(.2,.8,.2,1);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.sheet-head{display:flex;gap:10px;align-items:flex-start;padding:16px 16px 10px;border-bottom:1px solid var(--line)}
+.sheet-head textarea{flex:1;border:0;background:none;font-size:17px;font-weight:500;resize:none;padding:0;line-height:1.35;outline:none;min-width:0}
+.sheet-body{flex:1;overflow:auto;padding:14px 16px;display:grid;gap:18px;align-content:start}
+.sheet-foot{border-top:1px solid var(--line);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sec{display:grid;gap:8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-2);background:var(--raised);border-radius:99px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.chip:hover{color:var(--fg)}
+.chip.on{border-color:var(--accent);color:var(--fg);background:var(--accent-soft)}
+.qopt{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;border-radius:7px;cursor:pointer;text-align:left;font-size:13px}
+.qopt:hover{background:var(--raised)}
+.qopt.on{background:var(--raised)}
+.qopt .ok{margin-left:auto;color:var(--accent);visibility:hidden}
+.qopt.on .ok{visibility:visible}
+.rowbtn{display:flex;align-items:center;gap:8px;width:100%;border:1px solid var(--line-2);background:var(--bg);padding:8px 10px;border-radius:8px;cursor:pointer;text-align:left;font-size:13px}
+.rowbtn:hover{border-color:var(--faint)}
+.saved{font-family:var(--mono);font-size:11px;color:var(--faint);transition:color .3s}
+.saved.flash{color:var(--good)}
+
+/* Oben/Unten beim Hinzufügen */
+.pos{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden;flex:0 0 auto}
+.pos button{border:0;background:none;color:var(--faint);padding:0 7px;cursor:pointer;font-size:12px;line-height:28px}
+.pos button.on{background:var(--raised);color:var(--fg)}
+.col .addwrap{display:flex;gap:4px;align-items:center}
+.col .addwrap .pos button{line-height:24px;padding:0 5px}
+.select-sm{border:1px solid var(--line-2);background:var(--bg);border-radius:7px;padding:2px 6px;font-size:12px;color:var(--muted)}
+
+/* Plan endlos */
+.week.endless{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:var(--colw,210px);scroll-snap-type:x proximity;scroll-behavior:auto}
+.week.endless .col{scroll-snap-align:start}
+.col.weekstart .col-head{box-shadow:inset 2px 0 0 var(--line-2)}
+
+/* Quests */
+.qicon.emoji{font-size:16px;line-height:1}
+.qcard[draggable=true]{cursor:grab}
+.qcard.drag-over{outline:2px dashed var(--accent);outline-offset:2px}
+.tabs{display:inline-flex;gap:2px;border:1px solid var(--line-2);border-radius:9px;padding:2px}
+.tabs button{border:0;background:none;color:var(--muted);padding:4px 10px;border-radius:7px;cursor:pointer;font-size:12.5px}
+.tabs button.on{background:var(--raised);color:var(--fg)}
+.qedit{width:100%;max-width:820px!important;display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:0;padding:0!important;overflow:hidden}
+.qedit .main{padding:18px;display:grid;gap:12px;align-content:start;min-width:0}
+.qedit .side{padding:18px;border-left:1px solid var(--line);display:grid;gap:14px;align-content:start;background:var(--bg)}
+@media (max-width:700px){.qedit{grid-template-columns:minmax(0,1fr)}.qedit .side{border-left:0;border-top:1px solid var(--line)}}
+.iconbtn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line-2);background:var(--raised);font-size:20px;cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
+.icongrid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.icongrid button{border:0;background:none;font-size:18px;padding:4px;border-radius:6px;cursor:pointer}
+.icongrid button:hover{background:var(--raised)}
+.swatches{display:grid;grid-template-columns:repeat(6,24px);gap:8px}
+.swatches button,.swatches label{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;padding:0}
+.swatches button.on{border-color:var(--fg)}
+.swatches label{display:grid;place-items:center;border:1px dashed var(--faint);font-size:14px;color:var(--muted);position:relative;overflow:hidden}
+.swatches label input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.md{font-size:13.5px;line-height:1.55;overflow-wrap:anywhere}
+.md h3{font-size:16px;margin:8px 0 4px}.md h4{font-size:14px;margin:8px 0 4px}
+.md p{margin:4px 0}.md ul,.md ol{margin:4px 0;padding-left:20px}
+.md li.todo{list-style:none;margin-left:-20px;display:flex;gap:7px;align-items:flex-start}
+.md li.todo input{margin-top:4px}
+.md li.todo.done span{color:var(--muted);text-decoration:line-through}
+.md code{font-family:var(--mono);font-size:12px;background:var(--raised);padding:1px 4px;border-radius:4px}
+.md hr{border:0;border-top:1px solid var(--line);margin:8px 0}
+.mdbar{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:6px}
+.mdbar button{border:0;background:none;color:var(--muted);padding:3px 7px;border-radius:6px;cursor:pointer;font-size:12px;font-family:var(--mono)}
+.mdbar button:hover,.mdbar button.on{background:var(--raised);color:var(--fg)}
+.notes-edit{min-height:180px;background:transparent;border-color:var(--line)}
+
+/* Arbeit erfassen: Vorschläge */
+.sugg{display:grid;gap:2px;max-height:200px;overflow:auto;border:1px solid var(--line-2);border-radius:8px;padding:4px;background:var(--bg)}
+.sugg button{display:flex;gap:8px;align-items:center;border:0;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left;font-size:13px}
+.sugg button:hover,.sugg button.sel{background:var(--raised)}
+
+/* Tastenkürzel und Tour */
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;align-items:center}
+.keys kbd{justify-self:start;font-size:11.5px;padding:1px 6px}
+.tour h2{font-size:18px}
+.tour p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}
+.dots{display:flex;gap:5px}.dots i{width:6px;height:6px;border-radius:50%;background:var(--line-2)}.dots i.on{background:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside id="side"></aside>
+  <main id="app"></main>
+</div>
+<nav class="mobile-nav" id="mnav"></nav>
+<div id="sheet"></div>
+<div id="modal"></div>
+<div id="toastBox"></div>
+
+<script>
+// ================= Zustand =================
+const COLORS=['#a78bfa','#f59e6b','#8fcf6a','#60a5fa','#f472b6','#2dd4bf','#e8c547','#a8a29e'];
+const SWATCHES=['#f07a6a','#f59e6b','#e8c547','#8fcf6a','#34d399','#2dd4bf','#38bdf8','#60a5fa','#818cf8','#a78bfa','#f472b6','#a8a29e'];
+const ICONS=['🎯','🚀','📚','💪','🏃','🧘','💼','💰','🧠','🎨','🎵','🎓','💻','✍️','🌱','❤️','🏠','✈️','🍎','⚽','🛠️','📈','🎬','🌍','⭐','🔥','🧩','📷','🎸','♟️','🤸','🗣️'];
+const LS='quest-app-v1', UIKEY='quest-ui-v1';
+const VIEWS={heute:'Heute',plan:'Plan',kalender:'Kalender',fokus:'Fokus',quests:'Quests',review:'Review'};
+const VKEYS={heute:'1',plan:'2',kalender:'3',fokus:'F',quests:'4',review:'5'};
+const WD=['Mo','Di','Mi','Do','Fr','Sa','So'];
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
+const blankSettings=()=>({theme:'auto',weeklyTarget:20,vision:''});
+const blank=()=>({v:2,quests:[],tasks:[],milestones:[],sessions:[],recurring:[],running:null,reviews:{},settings:blankSettings(),updatedAt:0});
+
+function fix(n){
+  n.settings=Object.assign(blankSettings(),n.settings||{});
+  for(const k of ['quests','tasks','milestones','sessions','recurring'])if(!Array.isArray(n[k]))n[k]=[];
+  if(!n.reviews||typeof n.reviews!=='object')n.reviews={};
+  n.sessions.forEach(s=>{if(!s.id)s.id=uid()});
+  return n;
+}
+function migrate(o){
+  if(!o||typeof o!=='object')return blank();
+  if(o.v===2)return fix(Object.assign(blank(),o));
+  // Version 1 → 2
+  const n=blank();n.updatedAt=o.updatedAt||0;
+  n.quests=(o.quests||[]).map(q=>({id:q.id,title:q.title,color:q.color||COLORS[0],archived:!!q.archived}));
+  for(const g of (o.goals||[])){if(!(o.quests||[]).some(q=>q.goalId===g.id))n.quests.push({id:g.id,title:g.title,color:COLORS[n.quests.length%COLORS.length],archived:false})}
+  const tk=dayKey(Date.now());
+  n.tasks=(o.tasks||[]).map((t,i)=>({id:t.id,title:t.title,questId:t.questId||null,day:tk,order:i,seconds:t.seconds||0,doneAt:null}));
+  for(const d of (o.done||[]))n.tasks.push({id:d.id,title:d.title,questId:d.questId||null,day:dayKey(d.doneAt),order:999,seconds:d.seconds||0,doneAt:d.doneAt});
+  n.sessions=(o.sessions||[]).map(s=>({q:s.q||null,t:null,s:s.s,e:s.e}));
+  n.running=o.running||null;
+  return fix(n);
+}
+let S=blank();
+try{const raw=localStorage.getItem(LS);if(raw)S=migrate(JSON.parse(raw))}catch(e){}
+let ui={othersOpen:false,calMode:'tag',addPos:'bottom',questFilter:'',planHideOthers:false,planWide:false,questTab:'aktiv',tourDone:false};
+try{Object.assign(ui,JSON.parse(localStorage.getItem(UIKEY)||'{}'))}catch(e){}
+const saveUi=()=>{try{localStorage.setItem(UIKEY,JSON.stringify(ui))}catch(e){}};
+
+const hashView=()=>{const h=location.hash.slice(1);return h==='woche'?'plan':(VIEWS[h]?h:null)};
+let view=hashView()||'heute';
+let focusId=null, weekOffset=0, reviewOffset=0, calDay=null, hoverId=null;
+let planFrom=null, planTo=null, planScroll=null, planJump='today', planHold=false;
+const openQuests=new Set();
+
+// ================= Helfer =================
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function dayKey(t){const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+const keyToDate=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
+const today=()=>dayKey(Date.now());
+const addDays=(k,n)=>{const d=keyToDate(k);d.setDate(d.getDate()+n);return dayKey(d)};
+const wdIdx=k=>(keyToDate(k).getDay()+6)%7;
+function weekStart(offset=0,from){const d=from?keyToDate(from):new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7)+offset*7);return dayKey(d)}
+const weekDays=ws=>[0,1,2,3,4,5,6].map(i=>addDays(ws,i));
+const fmtH=sec=>{sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);return h?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m`};
+const fmtDec=sec=>(sec/3600).toLocaleString('de-DE',{maximumFractionDigits:1});
+const fmtClock=sec=>{sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return (h?h+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')};
+const fmtTime=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const fmtDayLong=k=>keyToDate(k).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
+const fmtDM=k=>keyToDate(k).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
+const quest=id=>S.quests.find(q=>q.id===id);
+const task=id=>S.tasks.find(t=>t.id===id);
+const qColor=id=>id?(quest(id)?.color||'#a8a29e'):'var(--other)';
+const qName=id=>id?(quest(id)?.title||'Gelöschte Quest'):'Andere';
+const activeQuests=()=>S.quests.filter(q=>!q.archived);
+const pill=id=>`<span class="pill" style="--qc:${qColor(id)}">${esc(qName(id))}</span>`;
+const CHECK='<svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
+const CHEV='<svg viewBox="0 0 10 10"><path d="M3 1.5L6.5 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const target=()=>Math.max(0,+S.settings.weeklyTarget||0)*3600;
+
+function taskSec(t){let s=t.seconds||0;if(S.running&&S.running.taskId===t.id)s+=(Date.now()-S.running.startedAt)/1000;return s}
+function sessionsBetween(a,b){
+  const out=S.sessions.filter(s=>s.s>=a&&s.s<b).map(s=>({...s,sec:(s.e-s.s)/1000}));
+  if(S.running&&S.running.startedAt>=a&&S.running.startedAt<b){const t=task(S.running.taskId);const now=Date.now();out.push({id:'run',q:t?t.questId:null,t:S.running.taskId,s:S.running.startedAt,e:now,sec:(now-S.running.startedAt)/1000,running:true})}
+  return out;
+}
+const dayRange=k=>[keyToDate(k).getTime(),keyToDate(addDays(k,1)).getTime()];
+const weekRange=ws=>[keyToDate(ws).getTime(),keyToDate(addDays(ws,7)).getTime()];
+function byQuest(list){const m={};for(const s of list)if(s.q)m[s.q]=(m[s.q]||0)+s.sec;return m}
+const sum=list=>list.reduce((a,s)=>a+s.sec,0);
+const qsum=list=>list.reduce((a,s)=>a+(s.q?s.sec:0),0);
+const weekQuestSec=ws=>qsum(sessionsBetween(...weekRange(ws)));
+function dayTasks(k){return S.tasks.filter(t=>t.day===k).sort((a,b)=>(!!a.doneAt-!!b.doneAt)||(a.doneAt&&b.doneAt?a.doneAt-b.doneAt:a.order-b.order))}
+function openDay(k){return S.tasks.filter(t=>t.day===k&&!t.doneAt).sort((a,b)=>a.order-b.order)}
+const overdue=()=>S.tasks.filter(t=>!t.doneAt&&t.day&&t.day<today()).sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.order-b.order);
+const backlog=()=>S.tasks.filter(t=>!t.doneAt&&!t.day).sort((a,b)=>a.order-b.order);
+function queue(){const od=overdue(),o=openDay(today());return [...od.filter(t=>t.questId),...o.filter(t=>t.questId),...od.filter(t=>!t.questId),...o.filter(t=>!t.questId)]}
+
+// ================= Aktionen =================
+function save(){S.updatedAt=Date.now();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}queueRemote()}
+function commit(){save();render()}
+function stopTimer(){
+  if(!S.running)return;
+  const t=task(S.running.taskId);const now=Date.now();
+  if(t&&now-S.running.startedAt>1500){t.seconds=(t.seconds||0)+(now-S.running.startedAt)/1000;S.sessions.push({id:uid(),q:t.questId||null,t:t.id,s:S.running.startedAt,e:now})}
+  S.running=null;
+}
+function startTimer(id){stopTimer();S.running={taskId:id,startedAt:Date.now()}}
+function nextOrder(day){const l=S.tasks.filter(t=>t.day===day&&!t.doneAt);return l.length?Math.max(...l.map(t=>t.order))+1:0}
+function addTask(title,questId,day,front){
+  title=(title||'').trim();if(!title)return null;
+  const t={id:uid(),title,questId:questId||null,day:day===undefined?today():day,order:0,seconds:0,doneAt:null,notes:''};
+  if(front===undefined)front=ui.addPos==='top';
+  if(front){S.tasks.filter(x=>x.day===t.day&&!x.doneAt).forEach(x=>x.order++);t.order=0}else t.order=nextOrder(t.day);
+  S.tasks.push(t);commit();return t;
+}
+function completeTask(id,animEl){
+  const t=task(id);if(!t||t.doneAt)return;
+  const doIt=()=>{if(S.running&&S.running.taskId===id)stopTimer();t.doneAt=Date.now();if(!t.day||t.day>today())t.day=today();if(focusId===id)focusId=null;commit();toast(`„${t.title}“ erledigt`,()=>{t.doneAt=null;commit()})};
+  if(animEl){animEl.classList.add('completing');setTimeout(doIt,700)}else doIt();
+}
+function uncomplete(id){const t=task(id);if(!t)return;t.doneAt=null;t.order=nextOrder(t.day);commit()}
+function moveTask(id,day,beforeId){
+  const t=task(id);if(!t)return;
+  t.day=day;
+  const list=S.tasks.filter(x=>x.day===day&&!x.doneAt&&x.id!==id).sort((a,b)=>a.order-b.order);
+  let i=beforeId?list.findIndex(x=>x.id===beforeId):-1;if(i<0)i=list.length;
+  list.splice(i,0,t);list.forEach((x,j)=>x.order=j);commit();
+}
+function delTask(id){const t=task(id);if(!t)return;if(S.running&&S.running.taskId===id)S.running=null;S.tasks=S.tasks.filter(x=>x.id!==id);commit();toast('Aufgabe gelöscht',()=>{S.tasks.push(t);commit()})}
+function focusTask(id){focusId=id;go('fokus')}
+function go(v){view=v;if(location.hash.slice(1)!==v)location.hash=v;render();window.scrollTo(0,0)}
+function newQuest(title){title=(title||'').trim();if(!title)return;const used=S.quests.map(q=>q.color);const q={id:uid(),title,desc:'',target:0,color:COLORS.find(c=>!used.includes(c))||COLORS[S.quests.length%COLORS.length],archived:false};S.quests.push(q);commit();return q}
+// ----- Wiederholungen
+// Regel: {freq:'day'|'week'|'month'|'year', interval, days:[0..6 Mo=0] (nur Woche), pin:'none'|'top'|'bottom', start, end}
+const DAY=86400000;
+function recurs(r,d){
+  if(r.start&&d<r.start)return false;if(r.end&&d>r.end)return false;
+  const f=r.freq||'week',n=Math.max(1,+r.interval||1);const a=keyToDate(r.start||d),b=keyToDate(d);
+  if(f==='day')return Math.round((b-a)/DAY)%n===0;
+  if(f==='week'){if(!(r.days||[]).includes(wdIdx(d)))return false;return Math.round((keyToDate(weekStart(0,d))-keyToDate(weekStart(0,r.start||d)))/(7*DAY))%n===0}
+  if(f==='month')return b.getDate()===a.getDate()&&((b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth())%n===0;
+  if(f==='year')return b.getMonth()===a.getMonth()&&b.getDate()===a.getDate()&&(b.getFullYear()-a.getFullYear())%n===0;
+  return false;
+}
+function recurText(r){
+  const f=r.freq||'week',n=Math.max(1,+r.interval||1);const a=r.start?keyToDate(r.start):new Date();
+  let s=f==='day'?(n===1?'Jeden Tag':`Alle ${n} Tage`)
+    :f==='week'?(n===1?'Jede Woche':`Alle ${n} Wochen`)+((r.days||[]).length?': '+[...r.days].sort().map(i=>WD[i]).join(', '):'')
+    :f==='month'?(n===1?'Jeden Monat':`Alle ${n} Monate`)+` am ${a.getDate()}.`
+    :(n===1?'Jedes Jahr':`Alle ${n} Jahre`)+` am ${a.toLocaleDateString('de-DE',{day:'numeric',month:'long'})}`;
+  if(r.pin==='top')s+=' · oben';else if(r.pin==='bottom')s+=' · unten';
+  if(r.end)s+=' · bis '+fmtDM(r.end);
+  return s;
+}
+// Wiederkehrende Aufgaben für sichtbare Tage anlegen (nur heute und später)
+function ensureRecurring(days){
+  let changed=false;const k=today();
+  for(const r of S.recurring){r.made=r.made||{};
+    for(const d of days){if(d<k||r.made[d]||!recurs(r,d))continue;
+      r.made[d]=true;const t={id:uid(),title:r.title,questId:r.questId||null,day:d,order:nextOrder(d),seconds:0,doneAt:null,notes:'',recurId:r.id};
+      if(r.pin==='top'){S.tasks.filter(x=>x.day===d&&!x.doneAt).forEach(x=>x.order++);t.order=0}
+      S.tasks.push(t);changed=true}}
+  return changed;
+}
+
+let toastTimer;
+function toast(msg,undo){
+  $('#toastBox').innerHTML=`<div class="toast" role="status"><span>${esc(msg)}</span>${undo?'<button id="undoBtn">Rückgängig</button>':''}</div>`;
+  if(undo)$('#undoBtn').onclick=()=>{undo();$('#toastBox').innerHTML=''};
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toastBox').innerHTML='',4500);
+}
+
+// ================= Theme =================
+function applyTheme(){const t=S.settings.theme||'auto';if(t==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=t}
+
+// ================= Rendering =================
+function render(){
+  applyTheme();
+  const need=[];const last=view==='plan'&&planTo>addDays(today(),6)?planTo:addDays(today(),6);
+  for(let d=today();d<=last;d=addDays(d,1))need.push(d);
+  if(ensureRecurring(need))save();
+  if(view==='plan'&&!planHold){const w=$('.week.endless');if(w)planScroll=w.scrollLeft}
+  renderSide();
+  $('#mnav').innerHTML=Object.entries(VIEWS).map(([k,l])=>`<button data-go="${k}" class="${k===view?'on':''}">${l}</button>`).join('');
+  $('#app').innerHTML=`<div class="wrap">${({heute:vHeute,plan:vPlan,kalender:vKalender,fokus:vFokus,quests:vQuests,review:vReview})[view]()}</div>`;
+  bind();
+  if(view==='plan')placePlanScroll();
+}
+// Schalter, ob neue Aufgaben oben oder unten eingefügt werden (gilt überall)
+const posToggle=()=>`<span class="pos" role="group" aria-label="Neue Aufgaben einfügen"><button type="button" data-pos="top" class="${ui.addPos==='top'?'on':''}" title="Oben einfügen" aria-label="Oben einfügen">⤒</button><button type="button" data-pos="bottom" class="${ui.addPos!=='top'?'on':''}" title="Unten einfügen" aria-label="Unten einfügen">⤓</button></span>`;
+
+function renderSide(){
+  const ws=weekStart();const cur=sessionsBetween(...weekRange(ws));const m=byQuest(cur);const qs=qsum(cur);const tg=target();
+  $('#side').innerHTML=`<div class="brand"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="36 12" transform="rotate(-90 10 10)"/><circle cx="10" cy="10" r="2.5" fill="var(--fg)"/></svg>Quest</div>
+  <div class="nav">${Object.entries(VIEWS).map(([k,l])=>`<button data-go="${k}" class="${k===view?'on':''}"><span>${l}</span><kbd>${VKEYS[k]}</kbd></button>`).join('')}</div>
+  <div class="side-block">
+    <div class="row between"><span class="label">Diese Woche</span><span class="meta" data-live-week>${fmtH(qs)}${tg?' / '+fmtDec(tg)+'h':''}</span></div>
+    ${tg?`<div class="prog"><i style="width:${Math.min(100,qs/tg*100)}%"></i></div>`:''}
+    ${activeQuests().map(q=>`<div class="side-q" data-go="quests"><span class="dot" style="--qc:${q.color}"></span><span class="t">${esc(q.title)}</span><span class="meta">${fmtH(m[q.id]||0)}</span></div>`).join('')||'<div class="muted" style="font-size:12px">Noch keine Quests.</div>'}
+  </div>
+  <div class="side-foot">
+    <span><kbd>N</kbd> Neue Aufgabe &nbsp; <kbd>Strg K</kbd> Befehle</span>
+    <button class="btn sm ghost" id="settingsBtn" style="justify-self:start;padding-left:0">Einstellungen</button>
+    <div id="sync">${syncText}</div>
+  </div>`;
+}
+
+function taskRow(t,opts={}){
+  const run=S.running&&S.running.taskId===t.id;const sec=taskSec(t);
+  return `<div class="task ${t.doneAt?'done':''} ${opts.first?'first':''}" draggable="${t.doneAt?'false':'true'}" data-id="${t.id}" data-day="${t.day||''}">
+    <button class="check ${t.doneAt?'on':''}" data-check="${t.id}" aria-label="${t.doneAt?'Wieder öffnen':'Als erledigt markieren'}">${CHECK}</button>
+    <span class="body" data-edit="${t.id}">${opts.first?'<span class="label" style="color:var(--accent)">Jetzt dran</span>':''}<span class="t">${esc(t.title)}</span>${opts.pill!==false?`<span>${pill(t.questId)}</span>`:''}</span>
+    <span class="meta" ${run?`data-live-task="${t.id}" style="color:var(--accent)"`:''}>${sec>=30||run?fmtH(sec):''}</span>
+    ${t.doneAt?'':`<span class="acts">${opts.today?'':`<button class="btn sm ghost" data-today="${t.id}">Heute</button>`}<button class="btn sm ghost" data-focus="${t.id}">Fokus</button></span>`}
+  </div>`;
+}
+
+function vHeute(){
+  const k=today();const open=openDay(k);const oOpen=open.filter(t=>!t.questId);
+  if(ui.questFilter&&!quest(ui.questFilter))ui.questFilter='';
+  const qOpen=open.filter(t=>t.questId&&(!ui.questFilter||t.questId===ui.questFilter));
+  const od=overdue();
+  const done=S.tasks.filter(t=>t.doneAt&&dayKey(t.doneAt)===k).sort((a,b)=>a.doneAt-b.doneAt);
+  const daySes=sessionsBetween(...dayRange(k));const m=byQuest(daySes);const qd=qsum(daySes);const other=sum(daySes)-qd;
+  const wq=weekQuestSec(weekStart());const tg=target();
+  const h=new Date().getHours();const greet=h<11?'Guten Morgen':h<18?'Guten Tag':'Guten Abend';
+  const first=queue()[0];
+  return `<div class="top"><div><div class="label">${fmtDayLong(k)}</div><h1>${greet}. Was bringt deine Quests heute voran?</h1></div></div>
+  <div class="grid2">
+    <div class="stack">
+      ${od.length?`<div class="card"><div class="row between"><span class="label">Offen von früher · ${od.length}</span><button class="btn sm" id="rollAll">Alle auf heute</button></div>
+        <div class="tlist" style="margin-top:10px">${od.map(t=>taskRow(t)).join('')}</div></div>`:''}
+      <div class="card">
+        <div class="row between" style="margin-bottom:10px"><span class="label">Quest-Arbeit · ${qOpen.length} offen</span>
+          <select class="select-sm" id="qFilter" aria-label="Quest-Aufgaben filtern"><option value="">Alle Quests</option>${activeQuests().map(q=>`<option value="${q.id}" ${q.id===ui.questFilter?'selected':''}>${esc(q.title)}</option>`).join('')}</select></div>
+        <div class="tlist" data-drop-day="${k}">
+          ${qOpen.length?qOpen.map((t,i)=>taskRow(t,{first:i===0&&!ui.questFilter&&!od.some(x=>x.questId),today:true})).join(''):`<div class="empty">${ui.questFilter?'Für diese Quest ist heute nichts geplant.':'Leg die Aufgabe, die eine Quest am weitesten bringt, ganz nach oben.'}</div>`}
+        </div>
+        <form class="addline" id="addToday"><input class="field" id="addTitle" placeholder="Aufgabe für heute …" autocomplete="off"><select class="field" id="addQuest" aria-label="Quest">${questOptions(ui.questFilter||lastQuest)}</select>${posToggle()}<button class="btn accent" aria-label="Hinzufügen">+</button></form>
+        <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:8px">
+          <button class="fold ${ui.othersOpen?'open':''}" id="foldOthers">${CHEV}<span class="label">Andere Aufgaben · ${oOpen.length}</span><span class="meta" style="margin-left:6px">ein- und ausblenden mit V</span></button>
+          ${ui.othersOpen?`<div class="tlist" data-drop-day="${k}" style="margin-top:6px">${oOpen.map(t=>taskRow(t,{today:true,pill:false})).join('')||'<div class="empty">Keine.</div>'}</div>`:''}
+        </div>
+      </div>
+      <div class="card">
+        <div class="row between" style="margin-bottom:8px"><span class="label">Geschafft heute · ${done.length}</span><span class="meta">${fmtH(qd)} Quest · ${fmtH(other)} andere</span></div>
+        <div class="tlist">${done.map(t=>taskRow(t)).join('')||'<div class="empty">Hier landet alles, was du heute abhakst.</div>'}</div>
+      </div>
+      <div class="card"><div class="row between" style="margin-bottom:10px"><span class="label">Dein Tag</span><span class="meta">Maus über eine Aufgabe + Leertaste startet den Timer</span></div>${timeline([k])}</div>
+    </div>
+    <div class="stack">
+      <div class="card" style="display:grid;gap:12px">
+        <div class="label">Quest-Stunden heute</div>
+        <div class="big num" data-live-today>${fmtH(qd)}</div>
+        ${Object.keys(m).length?`<div class="tlist">${Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([q,s])=>`<div class="row" style="font-size:13px"><span class="dot" style="--qc:${qColor(q)}"></span><span style="flex:1">${esc(qName(q))}</span><span class="meta">${fmtH(s)}</span></div>`).join('')}</div>`:'<div class="muted" style="font-size:13px">Starte den Fokus-Timer, dann wird jede Minute deiner Quest gutgeschrieben.</div>'}
+        ${first?`<button class="btn accent" data-focus="${first.id}" style="padding:9px">Fokus starten · ${esc(first.title.length>28?first.title.slice(0,27)+'…':first.title)}</button>`:''}
+      </div>
+      <div class="card" style="display:grid;gap:10px">
+        <div class="row between"><span class="label">Wochenziel</span><span class="meta">${fmtH(wq)} von ${fmtDec(tg)}h</span></div>
+        <div class="prog"><i style="width:${tg?Math.min(100,wq/tg*100):0}%"></i></div>
+        <div class="muted" style="font-size:12.5px">Gemessen wird Zeit, die in Quest-Aufgaben geflossen ist, kein Ergebnis.</div>
+      </div>
+      <div class="card" style="display:grid;gap:8px">
+        <div class="label">Deine Quests</div>
+        ${activeQuests().map(q=>{const n=S.tasks.filter(t=>t.questId===q.id&&!t.doneAt).length;return `<div class="row" style="font-size:13px"><span class="dot" style="--qc:${q.color}"></span><span style="flex:1;min-width:0">${esc(q.title)}</span><span class="meta">${n} offen</span></div>`}).join('')||'<div class="muted" style="font-size:13px">Eine Quest ist ein großes Ziel für dieses Quartal oder Jahr, zum Beispiel „Bachelorarbeit abgeben“.</div>'}
+        <form class="addline" id="sideNewQuest" style="margin-top:4px"><input class="field" id="sideNewQuestIn" placeholder="Neue Quest …" autocomplete="off"><button class="btn" aria-label="Quest anlegen">+</button></form>
+      </div>
+    </div>
+  </div>`;
+}
+let lastQuest='';
+function questOptions(sel){return `<option value="">Andere (ohne Quest)</option>`+activeQuests().map(q=>`<option value="${q.id}" ${q.id===sel?'selected':''}>${esc(q.title)}</option>`).join('')}
+
+function planCard(t){
+  const run=S.running&&S.running.taskId===t.id;const sec=taskSec(t);
+  return `<div class="pcard ${t.doneAt?'done':''}" style="--qc:${t.questId?qColor(t.questId):'transparent'}" draggable="${t.doneAt?'false':'true'}" data-id="${t.id}" data-day="${t.day||''}">
+    <span class="t" data-edit="${t.id}">${esc(t.title)}</span>
+    <span class="foot"><span class="row" style="gap:6px;min-width:0;flex-wrap:nowrap"><button class="check ${t.doneAt?'on':''}" data-check="${t.id}" aria-label="${t.doneAt?'Wieder öffnen':'Erledigt'}">${CHECK}</button>${t.questId?pill(t.questId):''}</span><span class="meta" ${run?`data-live-task="${t.id}" style="color:var(--accent)"`:''}>${sec>=30||run?fmtH(sec):''}</span></span>
+  </div>`;
+}
+const colW=()=>ui.planWide?260:210;
+function vPlan(){
+  const k=today();
+  if(!planFrom){planFrom=addDays(k,-14);planTo=addDays(k,28)}
+  const days=[];for(let d=planFrom;d<=planTo;d=addDays(d,1))days.push(d);
+  const hide=ui.planHideOthers;
+  return `<div class="top"><div><div class="label" id="planMonth">${keyToDate(k).toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</div><h1>Woche planen</h1></div>
+    <div class="row"><button class="btn sm" id="recurBtn">↻ Wiederkehrend</button><button class="btn sm ${hide?'':'ghost'}" id="hideOthers" title="Aufgaben ohne Quest ein-/ausblenden (V)">${hide?'Andere ausgeblendet':'Andere sichtbar'}</button>
+    <button class="btn sm ghost" data-pscroll="-7" aria-label="Eine Woche zurück">←</button><button class="btn sm" data-pscroll="0">Heute</button><button class="btn sm ghost" data-pscroll="7" aria-label="Eine Woche weiter">→</button></div></div>
+  <div class="week endless" style="--colw:${colW()}px">${days.map(d=>{const ts=dayTasks(d).filter(t=>!hide||t.questId);const q=qsum(sessionsBetween(...dayRange(d)));return `<div class="col ${d===k?'today':''} ${d<k?'past':''} ${wdIdx(d)===0?'weekstart':''}" data-drop-day="${d}" data-colday="${d}">
+    <div class="col-head"><b>${keyToDate(d).toLocaleDateString('de-DE',{weekday:'short',day:'numeric'})}${keyToDate(d).getDate()===1?' '+keyToDate(d).toLocaleDateString('de-DE',{month:'short'}):''}</b><span class="meta">${q?fmtH(q):''}</span></div>
+    ${d>=k?`<div class="addwrap"><input data-addday="${d}" placeholder="+ Aufgabe" autocomplete="off" aria-label="Aufgabe für ${fmtDayLong(d)}">${posToggle()}</div>`:''}
+    ${ts.map(planCard).join('')}
+  </div>`}).join('')}</div>
+  <div class="card backlog" data-drop-day="">
+    <div class="row between" style="margin-bottom:10px"><span class="label">Backlog · ohne Tag</span><span class="meta">auf einen Tag ziehen, um es einzuplanen</span></div>
+    <div class="tlist">${backlog().map(t=>taskRow(t)).join('')||'<div class="empty">Leer.</div>'}</div>
+    <form class="addline" id="addBacklog"><input class="field" id="addBacklogIn" placeholder="Aufgabe ins Backlog …" autocomplete="off"><select class="field" id="addBacklogQ" aria-label="Quest">${questOptions()}</select><button class="btn" aria-label="Hinzufügen">+</button></form>
+  </div>`;
+}
+// Scrollposition im Plan halten, beim Rand nachladen
+function planScrollTo(day,smooth){const w=$('.week.endless');if(!w)return;const i=Math.round((keyToDate(day)-keyToDate(planFrom))/DAY);w.scrollTo({left:Math.max(0,i*(colW()+8)),behavior:smooth?'smooth':'auto'})}
+function placePlanScroll(){
+  const w=$('.week.endless');if(!w)return;
+  if(planJump){planScrollTo(planJump==='today'?addDays(today(),-1):planJump);planJump=null}else if(planScroll!=null)w.scrollLeft=planScroll;
+  planHold=false;updatePlanMonth();
+  w.onscroll=()=>{if(planHold)return;planScroll=w.scrollLeft;updatePlanMonth();
+    const step=colW()+8;
+    if(w.scrollLeft<step*2){planFrom=addDays(planFrom,-14);planScroll=w.scrollLeft+14*step;planHold=true;render()}
+    else if(w.scrollLeft+w.clientWidth>w.scrollWidth-step*2){planTo=addDays(planTo,14);planScroll=w.scrollLeft;planHold=true;render()}};
+}
+function updatePlanMonth(){const w=$('.week.endless'),m=$('#planMonth');if(!w||!m)return;const i=Math.floor(w.scrollLeft/(colW()+8))+1;const d=addDays(planFrom,Math.max(0,i));m.textContent=keyToDate(d).toLocaleDateString('de-DE',{month:'long',year:'numeric'})}
+
+// ----- Kalender: Logbuch der tatsächlich gearbeiteten Zeit
+function timeline(days){
+  const per=days.map(d=>sessionsBetween(...dayRange(d)));
+  let h0=8,h1=20;
+  per.forEach((list,i)=>{const base=keyToDate(days[i]).getTime();list.forEach(s=>{const a=(s.s-base)/3600000,b=(s.e-base)/3600000;h0=Math.min(h0,Math.floor(a));h1=Math.max(h1,Math.ceil(b))})});
+  if(days.includes(today())){const nh=new Date().getHours();h0=Math.min(h0,nh);h1=Math.max(h1,nh+1)}
+  h0=Math.max(0,h0);h1=Math.min(24,h1);
+  const pph=days.length>1?38:56;const H=(h1-h0)*pph;
+  const cols=`44px repeat(${days.length},minmax(${days.length>1?'110px':'0'},1fr))`;
+  const head=days.length>1?`<div></div>${days.map((d,i)=>`<div class="tl-head"><b style="${d===today()?'color:var(--accent)':''}">${keyToDate(d).toLocaleDateString('de-DE',{weekday:'short',day:'numeric'})}</b><span class="meta">${fmtH(qsum(per[i]))}</span></div>`).join('')}`:'';
+  const hours=[];for(let h=h0;h<=h1;h++)hours.push(`<span style="top:${(h-h0)*pph}px">${String(h).padStart(2,'0')}:00</span>`);
+  const colHtml=days.map((d,i)=>{const base=keyToDate(d).getTime();
+    const blocks=per[i].map(s=>{const top=((s.s-base)/3600000-h0)*pph;const hgt=Math.max(4,s.sec/3600*pph);const t=task(s.t);const ttl=t?t.title:qName(s.q);
+      return `<button class="blk ${s.running?'run':''}" ${s.running?'':`data-sess="${s.id}"`} style="top:${top}px;height:${Math.min(hgt,H-top)}px;--qc:${qColor(s.q)}" title="${esc(ttl)} · ${fmtTime(s.s)}–${fmtTime(s.e)}">${hgt>=20?`<b>${esc(ttl)}</b>`:''}${hgt>=34?`<span>${fmtTime(s.s)}–${s.running?'läuft':fmtTime(s.e)}</span>`:''}</button>`}).join('');
+    const now=d===today()?`<div class="now" style="top:${((Date.now()-base)/3600000-h0)*pph}px"></div>`:'';
+    return `<div class="tl-col" style="height:${H}px;--pph:${pph}px">${blocks}${now}</div>`}).join('');
+  return `<div class="tl-wrap"><div class="tl" style="grid-template-columns:${cols}">${head}<div class="tl-hours" style="height:${H}px">${hours.join('')}</div>${colHtml}</div></div>`;
+}
+function vKalender(){
+  if(!calDay)calDay=today();
+  const mode=ui.calMode==='woche'?'woche':'tag';
+  const ws=weekStart(0,calDay);
+  const title=mode==='tag'?fmtDayLong(calDay):`${fmtDM(ws)} – ${fmtDM(addDays(ws,6))}`;
+  const ctrl=`<div class="row"><div class="seg"><button data-cmode="tag" class="${mode==='tag'?'on':''}">Tag</button><button data-cmode="woche" class="${mode==='woche'?'on':''}">Woche</button></div>
+    <button class="btn sm ghost" data-cal="-1" aria-label="Zurück">←</button><button class="btn sm" data-cal="0">Heute</button><button class="btn sm ghost" data-cal="1" aria-label="Weiter">→</button><button class="btn sm" id="addTime">Arbeit erfassen</button></div>`;
+  if(mode==='woche'){
+    const days=weekDays(ws);const all=sessionsBetween(...weekRange(ws));
+    return `<div class="top"><div><div class="label">Logbuch · ${fmtH(qsum(all))} Quest-Zeit</div><h1>${title}</h1></div>${ctrl}</div>
+    <div class="card">${timeline(days)}</div>`;
+  }
+  const ts=S.tasks.filter(t=>t.day===calDay||(t.doneAt&&dayKey(t.doneAt)===calDay));
+  const uniq=[...new Map(ts.map(t=>[t.id,t])).values()];
+  const ses=sessionsBetween(...dayRange(calDay));
+  const qw=uniq.filter(t=>t.questId).sort((a,b)=>(!!a.doneAt-!!b.doneAt)||a.order-b.order);
+  const ow=uniq.filter(t=>!t.questId);
+  return `<div class="top"><div><div class="label">Logbuch</div><h1>${title}</h1></div>${ctrl}</div>
+  <div class="grid2" style="grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)">
+    <div class="card" style="display:grid;gap:10px">
+      <div class="row between"><span class="label">Quest-Arbeit</span><span class="meta">${fmtH(qsum(ses))}</span></div>
+      <div class="tlist">${qw.map(t=>taskRow(t,{today:calDay===today()})).join('')||'<div class="empty">Keine Quest-Aufgaben an diesem Tag.</div>'}</div>
+      <div class="row between" style="margin-top:6px"><span class="label">Andere</span><span class="meta">${fmtH(sum(ses)-qsum(ses))}</span></div>
+      <div class="tlist">${ow.map(t=>taskRow(t,{today:calDay===today(),pill:false})).join('')||'<div class="empty">Keine.</div>'}</div>
+    </div>
+    <div class="card">${timeline([calDay])}<div class="meta" style="margin-top:10px">Jeder Block ist eine Fokus-Sitzung. Klick auf einen Block, um Start und Ende zu korrigieren.</div></div>
+  </div>`;
+}
+
+function currentFocus(){
+  let t=focusId&&S.tasks.find(x=>x.id===focusId&&!x.doneAt);
+  if(!t&&S.running)t=S.tasks.find(x=>x.id===S.running.taskId&&!x.doneAt);
+  if(!t)t=queue()[0];
+  return t||null;
+}
+function vFokus(){
+  const t=currentFocus();
+  if(!t)return `<div class="focus"><div class="label">Fokus</div><h1>Für heute ist alles erledigt.</h1>
+    <p class="muted" style="margin:0">Plane neue Aufgaben ein oder hol dir welche aus dem Backlog.</p><div class="row" style="justify-content:center"><button class="btn" data-go="heute">Zu Heute</button><button class="btn" data-go="plan">Zum Plan</button></div></div>`;
+  focusId=t.id;
+  const run=!!(S.running&&S.running.taskId===t.id);
+  const left=queue().filter(x=>x.id!==t.id).length;
+  return `<div class="focus">
+    ${pill(t.questId)}
+    <h1 class="focus-title">${esc(t.title)}</h1>
+    <div class="clock ${run?'':'paused'}" id="clock">${fmtClock(taskSec(t))}</div>
+    <div class="clock-state ${run?'run':''}">${run?'läuft':'pausiert'}</div>
+    <div class="row" style="justify-content:center;margin-top:10px">
+      <button class="btn ${run?'':'accent'}" id="toggle">${run?'Pause':'Start'} <kbd>Leertaste</kbd></button>
+      <button class="btn" id="fdone">✓ Erledigt <kbd>Strg ↵</kbd></button>
+    </div>
+    <textarea class="field" id="fnotes" rows="3" placeholder="Notizen zu dieser Aufgabe …" aria-label="Notizen">${esc(t.notes||'')}</textarea>
+    <div class="row" style="justify-content:center"><button class="btn sm ghost" id="fskip">Andere Aufgabe wählen</button><span class="meta">${left?`danach noch ${left} in der Warteschlange`:'letzte Aufgabe für heute'}</span></div>
+  </div>`;
+}
+
+function weekSeries(n,offset,filter){const out=[];for(let i=n-1;i>=0;i--){const ws=weekStart(offset-i);const l=sessionsBetween(...weekRange(ws));out.push({ws,sec:filter?l.filter(filter).reduce((a,s)=>a+s.sec,0):qsum(l)})}return out}
+function sparkline(vals,color){
+  const W=120,H=36,max=Math.max(1,...vals);const step=W/(vals.length-1);
+  const pts=vals.map((v,i)=>[i*step,H-3-(v/max)*(H-8)]);
+  const line=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const last=pts[pts.length-1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polygon points="0,${H} ${line} ${W},${H}" fill="${color}" opacity=".12"/><polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${last[0]-1.5}" cy="${last[1]}" r="2.6" fill="${color}"/></svg>`;
+}
+function vQuests(){
+  const ws=weekStart();const qs=activeQuests();const arch=S.quests.filter(q=>q.archived);
+  const allQ=S.sessions.reduce((a,s)=>a+(s.q?(s.e-s.s)/1000:0),0)+(S.running&&task(S.running.taskId)?.questId?(Date.now()-S.running.startedAt)/1000:0);
+  const card=q=>{
+    const wk=sessionsBetween(...weekRange(ws)).filter(s=>s.q===q.id).reduce((a,s)=>a+s.sec,0);
+    const all=S.sessions.filter(s=>s.q===q.id).reduce((a,s)=>a+(s.e-s.s)/1000,0);
+    const series=weekSeries(8,0,s=>s.q===q.id).map(x=>x.sec);
+    const open=S.tasks.filter(t=>t.questId===q.id&&!t.doneAt).sort((a,b)=>(a.day||'9')<(b.day||'9')?-1:1);
+    const ms=S.milestones.filter(m=>m.questId===q.id).sort((a,b)=>b.date<a.date?-1:1);
+    const ex=openQuests.has(q.id);const tg=(+q.target||0)*3600;
+    return `<div class="card qcard" style="--qc:${q.color}" draggable="true" data-qid="${q.id}" tabindex="0" aria-label="Quest ${esc(q.title)}, mit Alt + Pfeiltasten verschieben">
+      <div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2>${q.desc?`<p>${esc(q.desc)}</p>`:''}</div><button class="btn sm ghost" data-editq="${q.id}">Bearbeiten</button></div>
+      <div class="qfig"><div><div class="big num">${fmtH(wk)}</div><div class="label" style="margin-top:4px">diese Woche${tg?` · Ziel ${fmtDec(tg)}h`:''}</div></div><div style="text-align:right">${sparkline(series,q.color)}<div class="meta">${fmtH(all)} gesamt</div></div></div>
+      ${tg?`<div class="prog"><i style="width:${Math.min(100,wk/tg*100)}%;background:${q.color}"></i></div>`:''}
+      <button class="fold ${ex?'open':''}" data-qopen="${q.id}">${CHEV}<span class="label">Meilensteine ${ms.length} · offene Aufgaben ${open.length}</span></button>
+      ${ex?`<div style="display:grid;gap:12px">
+        <div>${ms.map(m=>`<div class="ms"><span class="t">${esc(m.title)}</span><span class="meta">${fmtDM(m.date)}</span><button class="btn sm ghost" data-delms="${m.id}" aria-label="Meilenstein entfernen">✕</button></div>`).join('')||'<div class="muted" style="font-size:12.5px">Halte hier fest, was du erreicht hast.</div>'}
+          <form class="addline" data-addms="${q.id}"><input class="field" placeholder="Meilenstein erreicht …" autocomplete="off" aria-label="Meilenstein"><button class="btn sm">◆</button></form></div>
+        <div><div class="tlist">${open.slice(0,6).map(t=>taskRow(t,{pill:false})).join('')||'<div class="muted" style="font-size:12.5px">Keine offenen Aufgaben.</div>'}</div>
+          ${open.length>6?`<div class="meta" style="padding:4px 2px">+ ${open.length-6} weitere</div>`:''}
+          <form class="addline" data-addq="${q.id}"><input class="field" placeholder="Aufgabe ins Backlog …" autocomplete="off" aria-label="Neue Aufgabe für diese Quest"><button class="btn sm">+</button></form></div>
+      </div>`:''}
+    </div>`;
+  };
+  return `<div class="top"><div><div class="label">Gib deiner Zeit eine Richtung</div><h1>Quests</h1></div></div>
+  <div class="card vision">
+    <label class="label" for="vision">Vision · Was für ein Mensch willst du sein?</label>
+    <textarea class="field" id="vision" rows="2" placeholder="Zum Beispiel: gesund, finanziell unabhängig, jemand, der Projekte zu Ende bringt …">${esc(S.settings.vision||'')}</textarea>
+    <div class="chain"><b>Vision</b>→<b>Quests</b><span>(dieses Jahr / Quartal)</span>→<b>Woche</b>→<b>Tag</b>→<b>Stunde</b><span>Jede Stunde sollte zu einer Quest passen.</span></div>
+  </div>
+  <div class="stats"><div><span class="label">Quest-Stunden gesamt</span><span class="big num">${fmtH(allQ)}</span></div><div><span class="label">Aktiv</span><span class="big num">${qs.length}</span></div><div><span class="label">Abgeschlossen</span><span class="big num">${arch.length}</span></div></div>
+  <div class="row between"><div class="tabs" role="tablist"><button role="tab" data-qtab="aktiv" class="${ui.questTab!=='done'?'on':''}">Aktiv · ${qs.length}</button><button role="tab" data-qtab="done" class="${ui.questTab==='done'?'on':''}">Abgeschlossen · ${arch.length}</button></div><span class="meta">Karten ziehen, um die Reihenfolge zu ändern</span></div>
+  ${ui.questTab==='done'
+    ?`<div class="qgrid">${arch.map(q=>`<div class="card qcard" style="--qc:${q.color}"><div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2>${q.desc?`<p>${esc(q.desc)}</p>`:''}</div></div><div class="row between"><span class="meta">${fmtH(S.sessions.filter(s=>s.q===q.id).reduce((a,s)=>a+(s.e-s.s)/1000,0))} investiert</span><span class="row"><button class="btn sm ghost" data-editq="${q.id}">Ansehen</button><button class="btn sm" data-unarch="${q.id}">Reaktivieren</button></span></div></div>`).join('')||'<div class="empty">Noch keine Quest abgeschlossen.</div>'}</div>`
+    :`<div class="qgrid">${qs.map(card).join('')}
+    <form class="qnew" id="newQuest"><div style="display:grid;gap:8px;width:100%"><span class="label">Neue Quest</span><input class="field" id="newQuestIn" placeholder="z. B. Marathon laufen" autocomplete="off"><button class="btn">Quest anlegen</button></div></form>
+  </div>`}`;
+}
+const qIcon=q=>q.icon?`<span class="qicon emoji">${esc(q.icon)}</span>`:`<span class="qicon"><i></i></span>`;
+function moveQuest(id,beforeId){
+  const q=quest(id);if(!q||id===beforeId)return;
+  S.quests=S.quests.filter(x=>x.id!==id);
+  const i=beforeId?S.quests.findIndex(x=>x.id===beforeId):-1;
+  S.quests.splice(i<0?S.quests.length:i,0,q);commit();
+}
+
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x||1)));const f=x/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p}
+function weeksChart(series,tgSec){
+  const W=640,H=210,L=34,R=10,T=14,B=26;const vals=series.map(s=>s.sec/3600);
+  const avg=vals.map((_,i)=>{const sl=vals.slice(Math.max(0,i-3),i+1);return sl.reduce((a,b)=>a+b,0)/sl.length});
+  const tg=tgSec/3600;const maxV=Math.max(1,...vals,...avg,tg)*1.1;const step=niceStep(maxV/4);const top=Math.ceil(maxV/step)*step;
+  const y=v=>T+(H-T-B)*(1-v/top);const bw=(W-L-R)/vals.length;
+  let g='';for(let v=0;v<=top+1e-9;v+=step)g+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  const bars=vals.map((v,i)=>{const x=L+i*bw+bw*.2,w=bw*.6;const cur=i===vals.length-1;return `<rect x="${x}" y="${y(v)}" width="${w}" height="${Math.max(0,y(0)-y(v))}" rx="3" fill="${cur?'var(--accent)':'var(--line-2)'}"/><text x="${x+w/2}" y="${H-8}" text-anchor="middle">${fmtDM(series[i].ws).replace('.','')}</text>`}).join('');
+  const pts=avg.map((v,i)=>`${L+i*bw+bw/2},${y(v)}`).join(' ');
+  const tline=tg?`<line x1="${L}" x2="${W-R}" y1="${y(tg)}" y2="${y(tg)}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".6"/><text x="${L+4}" y="${y(tg)-5}">Ziel ${fmtDec(tgSec)}h</text>`:'';
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Quest-Stunden der letzten ${vals.length} Wochen">${g}${tline}${bars}<polyline points="${pts}" fill="none" stroke="var(--fg)" stroke-width="1.5" opacity=".75"/>${avg.map((v,i)=>`<circle cx="${L+i*bw+bw/2}" cy="${y(v)}" r="${i===avg.length-1?3.5:2}" fill="var(--fg)"/>`).join('')}</svg>`;
+}
+function vReview(){
+  const ws=weekStart(reviewOffset);const days=weekDays(ws);const k=today();
+  const cur=sessionsBetween(...weekRange(ws));const prev=sessionsBetween(...weekRange(weekStart(reviewOffset-1)));
+  const q=qsum(cur),all=sum(cur),other=all-q,qp=qsum(prev);const tg=target();
+  const elapsed=reviewOffset===0?wdIdx(k)+1:reviewOffset<0?7:0;
+  const avg=elapsed?q/elapsed:0;
+  const m=byQuest(cur);const keys=Object.keys(m).sort((a,b)=>m[b]-m[a]);const mmax=Math.max(1,...Object.values(m));
+  const daySec=days.map(d=>byQuest(sessionsBetween(...dayRange(d))));const dtot=daySec.map(o=>Object.values(o).reduce((a,b)=>a+b,0));const dmax=Math.max(1,...dtot);
+  const [a,b]=weekRange(ws);const doneN=S.tasks.filter(t=>t.doneAt>=a&&t.doneAt<b).length;
+  const ms=S.milestones.filter(x=>{const d=keyToDate(x.date).getTime();return d>=a&&d<b});
+  const d=q-qp;
+  return `<div class="top"><div><div class="label">Wochen-Review · ${fmtDM(ws)} – ${fmtDM(addDays(ws,6))}</div><h1>Wie viel hat die Woche deine Quests vorangebracht?</h1></div>
+    <div class="row"><button class="btn sm ghost" data-rv="-1" aria-label="Vorige Woche">←</button><button class="btn sm" data-rv="0">Diese Woche</button><button class="btn sm ghost" data-rv="1" aria-label="Nächste Woche">→</button></div></div>
+  <div class="kpis">
+    <div class="card kpi"><span class="label">Quest-Stunden</span><span class="v hl num">${fmtH(q)}${tg?`<small> / ${fmtDec(tg)}h</small>`:''}</span><span class="meta">${tg?Math.round(q/tg*100)+' % vom Ziel · ':''}${d>=0?'+':'−'}${fmtH(Math.abs(d))} zur Vorwoche</span></div>
+    <div class="card kpi"><span class="label">Ø pro Tag</span><span class="v num">${fmtH(avg)}</span><span class="meta">über ${elapsed||0} ${elapsed===1?'Tag':'Tage'}</span></div>
+    <div class="card kpi"><span class="label">Quest-Anteil</span><span class="v num">${all?Math.round(q/all*100):0}<small> %</small></span><span class="meta">${doneN} erledigt · ${ms.length} Meilensteine</span></div>
+  </div>
+  <div class="rgrid">
+    <div class="card"><div class="label">Quest-Stunden pro Tag</div>
+      <div class="days">${days.map((dd,i)=>`<div class="daybar ${dd===k?'today':''}"><span class="meta">${dtot[i]?fmtH(dtot[i]):''}</span><div class="b" style="height:${dtot[i]/dmax*100}%">${Object.entries(daySec[i]).map(([qq,s])=>`<i style="display:block;height:${s/Math.max(dtot[i],1)*100}%;background:${qColor(qq)}"></i>`).join('')}</div><span class="meta">${WD[i]}</span></div>`).join('')}</div>
+    </div>
+    <div class="stack">
+      <div class="card" style="display:grid;gap:12px"><div class="label">Stunden pro Quest</div>
+        ${keys.length?keys.map(kk=>`<div class="hbar" style="--qc:${qColor(kk)}"><span class="row" style="gap:7px;flex-wrap:nowrap;min-width:0"><span class="dot"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(qName(kk))}</span></span><span class="meta">${fmtH(m[kk])}</span><span class="track"><i style="width:${m[kk]/mmax*100}%"></i></span></div>`).join(''):'<div class="empty">Noch keine Quest-Zeit in dieser Woche.</div>'}
+      </div>
+      <div class="card"><div class="row between"><span class="label">Quest-Arbeit gegen Andere</span><span class="meta">${fmtH(q)} · ${fmtH(other)}</span></div>
+        <div class="split">${all?`<i style="width:${q/all*100}%;background:var(--accent)"></i><i style="width:${other/all*100}%;background:var(--other)"></i>`:''}</div>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="row between" style="margin-bottom:8px"><span class="label">Quest-Stunden · letzte 8 Wochen</span><span class="meta">Linie = Durchschnitt der letzten 4 Wochen</span></div>${weeksChart(weekSeries(8,reviewOffset),tg)}</div>
+  ${ms.length?`<div class="card"><div class="label" style="margin-bottom:6px">Erreichte Meilensteine</div>${ms.map(x=>`<div class="ms"><span class="t">${esc(x.title)}</span><span class="meta">${esc(qName(x.questId))}</span></div>`).join('')}</div>`:''}
+  <div class="card" style="display:grid;gap:10px"><div class="label">Reflexion</div>
+    <ul class="prompts"><li>Was ist gut gelaufen, was schlecht, und warum?</li><li>Passen meine Tage zu meinen Quests, oder muss ich Ziele oder Alltag ändern?</li><li>Was ändere ich nächste Woche konkret?</li></ul>
+    <textarea class="field" id="reviewNote" rows="5" placeholder="Notizen zur Woche …">${esc(S.reviews[ws]||'')}</textarea>
+    <div class="row"><button class="btn" id="saveReview">Speichern</button><span class="meta" id="rvSaved"></span></div>
+  </div>`;
+}
+
+// ================= Ereignisse =================
+let dragId=null,notesTimer=null;
+function bind(){
+  const on=(sel,ev,fn)=>document.querySelectorAll(sel).forEach(el=>el.addEventListener(ev,fn));
+  const one=(sel,fn)=>{const el=$(sel);if(el)fn(el)};
+  on('[data-go]','click',e=>go(e.currentTarget.dataset.go));
+  one('#settingsBtn',el=>el.onclick=openSettings);
+  on('[data-check]','click',e=>{e.stopPropagation();const id=e.currentTarget.dataset.check;const t=task(id);if(t.doneAt)uncomplete(id);else completeTask(id,e.currentTarget.closest('.task,.pcard'))});
+  on('[data-focus]','click',e=>{e.stopPropagation();focusTask(e.currentTarget.dataset.focus)});
+  on('[data-today]','click',e=>{e.stopPropagation();moveTask(e.currentTarget.dataset.today,today())});
+  on('[data-edit]','click',e=>editTask(e.currentTarget.dataset.edit));
+  one('#rollAll',el=>el.onclick=()=>{const k=today();let o=nextOrder(k);overdue().forEach(t=>{t.day=k;t.order=o++});commit()});
+  one('#foldOthers',el=>el.onclick=()=>{ui.othersOpen=!ui.othersOpen;saveUi();render()});
+  one('#addToday',el=>el.onsubmit=e=>{e.preventDefault();lastQuest=$('#addQuest').value;addTask($('#addTitle').value,lastQuest,today());setTimeout(()=>$('#addTitle')?.focus(),0)});
+  one('#sideNewQuest',el=>el.onsubmit=e=>{e.preventDefault();newQuest($('#sideNewQuestIn').value)});
+  one('#newQuest',el=>el.onsubmit=e=>{e.preventDefault();newQuest($('#newQuestIn').value);setTimeout(()=>$('#newQuestIn')?.focus(),0)});
+  on('[data-addday]','keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const d=e.currentTarget.dataset.addday;planHold=true;addTask(e.currentTarget.value,null,d);setTimeout(()=>document.querySelector(`[data-addday="${d}"]`)?.focus({preventScroll:true}),0)});
+  one('#addBacklog',el=>el.onsubmit=e=>{e.preventDefault();addTask($('#addBacklogIn').value,$('#addBacklogQ').value,null);setTimeout(()=>$('#addBacklogIn')?.focus(),0)});
+  one('#recurBtn',el=>el.onclick=openRecurring);
+  on('[data-pscroll]','click',e=>{const v=+e.currentTarget.dataset.pscroll;const w=$('.week.endless');if(!w)return;
+    if(!v){planScrollTo(addDays(today(),-1),true);return}w.scrollBy({left:v*(colW()+8),behavior:'smooth'})});
+  one('#hideOthers',el=>el.onclick=()=>{ui.planHideOthers=!ui.planHideOthers;saveUi();render()});
+  one('#qFilter',el=>el.onchange=()=>{ui.questFilter=el.value;saveUi();render()});
+  on('[data-pos]','click',e=>{ui.addPos=e.currentTarget.dataset.pos;saveUi();document.querySelectorAll('[data-pos]').forEach(b=>b.classList.toggle('on',b.dataset.pos===ui.addPos))});
+  on('[data-qtab]','click',e=>{ui.questTab=e.currentTarget.dataset.qtab;saveUi();render()});
+  // Quests per Ziehen oder Alt + Pfeiltasten sortieren
+  let qDrag=null;
+  on('.qcard[data-qid]','dragstart',e=>{if(e.target!==e.currentTarget)return;qDrag=e.currentTarget.dataset.qid;e.dataTransfer.setData('text/plain',qDrag);e.dataTransfer.effectAllowed='move'});
+  on('.qcard[data-qid]','dragover',e=>{if(!qDrag)return;e.preventDefault();document.querySelectorAll('.qcard.drag-over').forEach(x=>x.classList.remove('drag-over'));e.currentTarget.classList.add('drag-over')});
+  on('.qcard[data-qid]','drop',e=>{if(!qDrag)return;e.preventDefault();const id=qDrag;qDrag=null;moveQuest(id,e.currentTarget.dataset.qid)});
+  on('.qcard[data-qid]','dragend',()=>{qDrag=null;document.querySelectorAll('.qcard.drag-over').forEach(x=>x.classList.remove('drag-over'))});
+  on('.qcard[data-qid]','keydown',e=>{if(e.target!==e.currentTarget||!e.altKey||!/Arrow(Left|Right|Up|Down)/.test(e.key))return;e.preventDefault();
+    const ids=activeQuests().map(q=>q.id);const id=e.currentTarget.dataset.qid;const i=ids.indexOf(id);const j=/Left|Up/.test(e.key)?i-1:i+1;if(j<0||j>=ids.length)return;
+    const others=S.quests.filter(q=>q.id!==id);const tgt=j>i?ids[j+1]:ids[j];moveQuest(id,tgt||null);setTimeout(()=>document.querySelector(`[data-qid="${id}"]`)?.focus(),0)});
+  on('.qcard[data-qid]','click',e=>{if(e.target.closest('button,input,form,.task'))return;editQuest(e.currentTarget.dataset.qid)});
+  // Maus über einer Aufgabe merken (für Leertaste = Timer)
+  on('.task[data-id],.pcard[data-id]','mouseenter',e=>{hoverId=e.currentTarget.dataset.id});
+  on('.task[data-id],.pcard[data-id]','mouseleave',()=>{hoverId=null});
+  on('[data-rv]','click',e=>{const v=+e.currentTarget.dataset.rv;reviewOffset=v?reviewOffset+v:0;render()});
+  on('[data-cmode]','click',e=>{ui.calMode=e.currentTarget.dataset.cmode;saveUi();render()});
+  on('[data-cal]','click',e=>{const v=+e.currentTarget.dataset.cal;calDay=v?addDays(calDay||today(),v*(ui.calMode==='woche'?7:1)):today();render()});
+  one('#addTime',el=>el.onclick=()=>addTimeModal());
+  on('[data-sess]','click',e=>editSession(e.currentTarget.dataset.sess));
+  on('[data-qopen]','click',e=>{const id=e.currentTarget.dataset.qopen;openQuests.has(id)?openQuests.delete(id):openQuests.add(id);render()});
+  on('[data-addq]','submit',e=>{e.preventDefault();const q=e.currentTarget.dataset.addq;addTask(e.currentTarget.querySelector('input').value,q,null);setTimeout(()=>document.querySelector(`[data-addq="${q}"] input`)?.focus(),0)});
+  on('[data-addms]','submit',e=>{e.preventDefault();const v=e.currentTarget.querySelector('input').value.trim();if(!v)return;S.milestones.push({id:uid(),questId:e.currentTarget.dataset.addms,title:v,date:today()});commit();toast('Meilenstein erreicht ◆')});
+  on('[data-delms]','click',e=>{S.milestones=S.milestones.filter(m=>m.id!==e.currentTarget.dataset.delms);commit()});
+  on('[data-editq]','click',e=>editQuest(e.currentTarget.dataset.editq));
+  on('[data-unarch]','click',e=>{const q=quest(e.currentTarget.dataset.unarch);if(q){q.archived=false;commit()}});
+  one('#vision',el=>el.onchange=()=>{S.settings.vision=el.value;save()});
+  one('#saveReview',el=>el.onclick=()=>{S.reviews[weekStart(reviewOffset)]=$('#reviewNote').value;save();$('#rvSaved').textContent='Gespeichert.'});
+  // Fokus
+  one('#toggle',el=>el.onclick=toggleTimer);
+  one('#fdone',el=>el.onclick=focusDone);
+  one('#fskip',el=>el.onclick=pickTask);
+  one('#fnotes',el=>el.oninput=()=>{const t=task(focusId);if(!t)return;clearTimeout(notesTimer);notesTimer=setTimeout(()=>{t.notes=el.value;save()},500)});
+  // Ziehen und Ablegen
+  const items='.task[draggable=true],.pcard[draggable=true]';
+  on(items,'dragstart',e=>{dragId=e.currentTarget.dataset.id;e.dataTransfer.setData('text/plain',dragId);e.dataTransfer.effectAllowed='move';const el=e.currentTarget;setTimeout(()=>el.classList.add('dragging'),0)});
+  on('.task,.pcard','dragend',e=>{e.currentTarget.classList.remove('dragging');document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));dragId=null});
+  on('.task,.pcard','dragover',e=>{if(!dragId||e.currentTarget.classList.contains('done'))return;e.preventDefault();e.stopPropagation();document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));e.currentTarget.classList.add('drag-over')});
+  on('.task,.pcard','drop',e=>{if(!dragId)return;e.preventDefault();e.stopPropagation();const tgt=e.currentTarget;if(tgt.dataset.id===dragId||tgt.classList.contains('done'))return;moveTask(dragId,tgt.dataset.day||null,tgt.dataset.id)});
+  on('[data-drop-day]','dragover',e=>{if(!dragId)return;e.preventDefault();document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));e.currentTarget.classList.add('drag-over')});
+  on('[data-drop-day]','dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.classList.remove('drag-over')});
+  on('[data-drop-day]','drop',e=>{if(!dragId)return;e.preventDefault();moveTask(dragId,e.currentTarget.dataset.dropDay||null)});
+}
+function toggleTimer(){const t=currentFocus();if(!t)return;if(S.running&&S.running.taskId===t.id)stopTimer();else startTimer(t.id);commit()}
+function focusDone(){
+  const t=currentFocus();if(!t)return;
+  const btn=$('#fdone');if(btn){btn.textContent='✓';btn.style.background='var(--good)';btn.style.borderColor='var(--good)';btn.style.color='var(--bg)'}
+  setTimeout(()=>{completeTask(t.id);focusId=null;render()},400);
+}
+
+// ================= Dialoge =================
+function closeModal(){$('#modal').innerHTML=''}
+const modalOpen=()=>!!$('#modal').innerHTML;
+function modal(html){$('#modal').innerHTML=`<div class="overlay" id="ov">${html}</div>`;$('#ov').onclick=e=>{if(e.target.id==='ov')closeModal()}}
+function dayOptions(sel){
+  const k=today();const opts=[['','Backlog (ohne Tag)'],[k,'Heute'],[addDays(k,1),'Morgen']];
+  for(let i=2;i<7;i++)opts.push([addDays(k,i),fmtDayLong(addDays(k,i))]);
+  if(sel&&!opts.some(o=>o[0]===sel))opts.push([sel,fmtDayLong(sel)]);
+  return opts.map(([v,l])=>`<option value="${v}" ${v===(sel||'')?'selected':''}>${l}</option>`).join('');
+}
+function quickAdd(){
+  modal(`<form class="card form" id="qa"><div class="label">Neue Aufgabe</div>
+    <input class="field" id="qaT" placeholder="Was ist zu tun?" autocomplete="off" style="font-size:16px">
+    <div class="row"><label>Quest<select class="field" id="qaQ">${questOptions(lastQuest)}</select></label><label>Tag<select class="field" id="qaD">${dayOptions(today())}</select></label></div>
+    <label class="row" style="color:var(--fg);font-size:13px;display:flex"><input type="checkbox" id="qaF"> Ganz nach oben setzen</label>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" id="qaC">Abbrechen</button><button class="btn accent">Anlegen</button></div></form>`);
+  $('#qaC').onclick=closeModal;
+  $('#qa').onsubmit=e=>{e.preventDefault();lastQuest=$('#qaQ').value;const d=$('#qaD').value||null;const f=$('#qaF').checked;const t=$('#qaT').value;closeModal();if(addTask(t,lastQuest,d,f))toast('Aufgabe angelegt')};
+  setTimeout(()=>$('#qaT').focus(),0);
+}
+// ================= Aufgaben-Panel (speichert automatisch) =================
+let sheetId=null,sheetTimer=null;
+const sheetOpen=()=>!!sheetId;
+function closeSheet(){sheetId=null;$('#sheet').innerHTML=''}
+function flashSaved(){const el=$('#shSaved');if(!el)return;el.textContent='Gespeichert';el.classList.add('flash');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('flash'),900)}
+function persist(){save();render();flashSaved()}
+function editTask(id){closeModal();openTask(id)}
+function openTask(id){
+  const t=task(id);if(!t)return;sheetId=id;
+  const r=t.recurId&&S.recurring.find(x=>x.id===t.recurId);
+  const run=S.running&&S.running.taskId===t.id;
+  const k=today();
+  $('#sheet').innerHTML=`<div class="sheet-back" id="shBack"></div><aside class="sheet" role="dialog" aria-label="Aufgabe bearbeiten">
+    <div class="sheet-head"><button class="check ${t.doneAt?'on':''}" id="shCheck" aria-label="${t.doneAt?'Wieder öffnen':'Als erledigt markieren'}" style="margin-top:3px">${CHECK}</button>
+      <textarea id="shTitle" rows="1" aria-label="Titel">${esc(t.title)}</textarea>
+      <button class="btn sm ghost" id="shClose" aria-label="Schließen">✕</button></div>
+    <div class="sheet-body">
+      <div class="sec"><span class="label">Datum</span>
+        <input class="field" type="date" id="shDate" value="${t.day||''}" aria-label="Datum">
+        <div class="chips"><button class="chip ${t.day===k?'on':''}" data-shday="${k}">Heute</button><button class="chip ${t.day===addDays(k,1)?'on':''}" data-shday="${addDays(k,1)}">Morgen</button><button class="chip ${t.day===weekStart(1)?'on':''}" data-shday="${weekStart(1)}">Nächster Montag</button><button class="chip ${!t.day?'on':''}" data-shday="">Backlog</button></div></div>
+      <div class="sec"><span class="label">Wiederholen</span>
+        <button class="rowbtn" id="shRepeat">↻ <span style="flex:1">${r?esc(recurText(r)):'Keine Wiederholung'}</span><span class="muted">›</span></button></div>
+      <div class="sec"><span class="label">Quest</span>
+        <div>${[{id:'',title:'Andere (keine Quest)',color:'var(--other)'},...activeQuests()].map(q=>`<button class="qopt ${(t.questId||'')===q.id?'on':''}" data-shq="${q.id}"><span class="dot" style="--qc:${q.color}"></span>${q.icon?esc(q.icon)+' ':''}${esc(q.title)}<span class="ok">✓</span></button>`).join('')}</div></div>
+      <div class="sec"><span class="label">Notizen</span><textarea class="field" id="shNotes" rows="3" placeholder="Details, Links, nächste Schritte …">${esc(t.notes||'')}</textarea></div>
+      <div class="sec"><div class="row between"><span class="label">Erfasste Zeit</span><span class="meta" id="shSum"></span></div>
+        <div id="shSes" style="display:grid;gap:6px"></div>
+        ${run?`<div class="meta">Der Timer läuft gerade. Diese Sitzung erscheint hier, sobald du ihn stoppst.</div>`:''}
+        <button class="btn sm" id="shAdd" style="justify-self:start">+ Sitzung hinzufügen</button>
+        <div class="meta" id="shWarn" style="color:var(--danger)"></div></div>
+      ${t.doneAt?`<div class="meta">Erledigt am ${new Date(t.doneAt).toLocaleDateString('de-DE')} um ${fmtTime(t.doneAt)}</div>`:''}
+    </div>
+    <div class="sheet-foot"><span class="row"><button class="btn sm ghost danger" id="shDel">Löschen</button>${t.doneAt?'':`<button class="btn sm" id="shFocus">${run?'Zum Timer':'Fokus starten'}</button>`}</span><span class="saved" id="shSaved">Speichert automatisch</span></div>
+  </aside>`;
+  const ta=$('#shTitle');const fit=()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'};fit();
+  $('#shBack').onclick=closeSheet;$('#shClose').onclick=closeSheet;
+  $('#shCheck').onclick=()=>{if(t.doneAt){uncomplete(id)}else{if(S.running&&S.running.taskId===id)stopTimer();t.doneAt=Date.now();if(!t.day||t.day>today())t.day=today();save();render()}openTask(id);flashSaved()};
+  ta.oninput=()=>{fit();clearTimeout(sheetTimer);sheetTimer=setTimeout(()=>{const v=ta.value.replace(/\n/g,' ').trim();if(!v)return;t.title=v;if(r)r.title=v;persist()},350)};
+  ta.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();ta.blur()}};
+  const setDay=d=>{d=d||null;if(d===t.day)return;if(t.doneAt){t.day=d;save();render()}else{planHold=true;moveTask(id,d)}openTask(id);flashSaved()};
+  $('#shDate').onchange=e=>setDay(e.target.value);
+  document.querySelectorAll('[data-shday]').forEach(b=>b.onclick=()=>setDay(b.dataset.shday));
+  $('#shRepeat').onclick=()=>openRepeat(r||null,t);
+  document.querySelectorAll('[data-shq]').forEach(b=>b.onclick=()=>{const nq=b.dataset.shq||null;t.questId=nq;S.sessions.forEach(s=>{if(s.t===t.id)s.q=nq});if(r)r.questId=nq;persist();openTask(id)});
+  $('#shNotes').oninput=e=>{clearTimeout(sheetTimer);sheetTimer=setTimeout(()=>{t.notes=e.target.value;save();flashSaved()},400)};
+  $('#shDel').onclick=()=>{closeSheet();delTask(id)};
+  const sf=$('#shFocus');if(sf)sf.onclick=()=>{closeSheet();focusTask(id)};
+  // Sitzungen: jede Zeile speichert für sich, sobald sie gültig ist
+  const own=S.sessions.filter(s=>s.t===t.id).sort((a,b)=>a.s-b.s);
+  const untracked=Math.max(0,(t.seconds||0)-own.reduce((a,s)=>a+(s.e-s.s)/1000,0));
+  const box=$('#shSes');
+  const rowHtml=(sid,dk,a,b)=>`<div class="sesrow" data-sid="${sid}"><input class="field" type="date" value="${dk}" aria-label="Datum"><input class="field" type="time" value="${a}" aria-label="Beginn"><span class="muted">–</span><input class="field" type="time" value="${b}" aria-label="Ende"><span class="meta dur"></span><button type="button" class="btn sm ghost" data-rm aria-label="Sitzung löschen">✕</button></div>`;
+  const rowVal=row=>{const i=row.querySelectorAll('input');const d=i[0].value,a=i[1].value,b=i[2].value;let s=toMs(d,a),e=toMs(d,b);if(e<=s)e+=DAY;return {s,e,ok:!!(d&&a&&b)}};
+  const recalc=()=>{t.seconds=untracked+S.sessions.filter(s=>s.t===t.id).reduce((a,s)=>a+(s.e-s.s)/1000,0)};
+  const refresh=()=>{let tot=untracked;box.querySelectorAll('.sesrow').forEach(row=>{const v=rowVal(row);const sec=v.ok?(v.e-v.s)/1000:0;tot+=sec;row.querySelector('.dur').textContent=v.ok?fmtH(sec):''});
+    $('#shSum').textContent=fmtH(tot+(run?(Date.now()-S.running.startedAt)/1000:0))+(untracked>=60?` · ${fmtH(untracked)} ohne Sitzung`:'')};
+  const commitRow=row=>{const v=rowVal(row);if(!v.ok){$('#shWarn').textContent='Bitte Datum, Beginn und Ende ausfüllen.';return}$('#shWarn').textContent='';
+    let s=row.dataset.sid&&S.sessions.find(x=>x.id===row.dataset.sid);
+    if(s){s.s=v.s;s.e=v.e}else{s={id:uid(),q:t.questId||null,t:t.id,s:v.s,e:v.e};S.sessions.push(s);row.dataset.sid=s.id}
+    recalc();persist()};
+  const wire=row=>{row.querySelectorAll('input').forEach(i=>{i.oninput=refresh;i.onchange=()=>commitRow(row)});
+    row.querySelector('[data-rm]').onclick=()=>{const sid=row.dataset.sid;row.remove();if(sid){S.sessions=S.sessions.filter(x=>x.id!==sid);recalc();persist()}refresh()}};
+  box.innerHTML=own.map(s=>rowHtml(s.id,dayKey(s.s),fmtTime(s.s),fmtTime(s.e))).join('');
+  box.querySelectorAll('.sesrow').forEach(wire);
+  $('#shAdd').onclick=()=>{const n=new Date();const a=String(Math.max(0,n.getHours()-1)).padStart(2,'0')+':00',b=String(n.getHours()).padStart(2,'0')+':00';
+    box.insertAdjacentHTML('beforeend',rowHtml('',t.day&&t.day<=today()?t.day:today(),a,b));const row=box.lastElementChild;wire(row);commitRow(row);refresh()};
+  refresh();
+}
+// Kleines Markdown: # Überschrift, - Liste, 1. Liste, - [ ] Checkliste, **fett**, *kursiv*, `code`, ---
+function md(src){
+  const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/(^|[^*])\*([^*]+)\*/g,'$1<i>$2</i>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');
+  const lines=(src||'').split('\n');let out='',list=null;
+  const close=()=>{if(list){out+=`</${list}>`;list=null}};
+  lines.forEach((l,i)=>{let m;
+    if((m=l.match(/^\s*[-*] \[( |x|X)\] (.*)$/))){if(list!=='ul'){close();out+='<ul>';list='ul'}const on=m[1]!==' ';out+=`<li class="todo ${on?'done':''}"><input type="checkbox" data-mdline="${i}" ${on?'checked':''} aria-label="Erledigt"><span>${inline(m[2])}</span></li>`}
+    else if((m=l.match(/^\s*[-*] (.*)$/))){if(list!=='ul'){close();out+='<ul>';list='ul'}out+=`<li>${inline(m[1])}</li>`}
+    else if((m=l.match(/^\s*\d+\. (.*)$/))){if(list!=='ol'){close();out+='<ol>';list='ol'}out+=`<li>${inline(m[1])}</li>`}
+    else{close();if(/^---+$/.test(l.trim()))out+='<hr>';else if((m=l.match(/^## (.*)$/)))out+=`<h4>${inline(m[1])}</h4>`;else if((m=l.match(/^# (.*)$/)))out+=`<h3>${inline(m[1])}</h3>`;else if(l.trim())out+=`<p>${inline(l)}</p>`}});
+  close();return out||'<p class="muted">Noch keine Notizen.</p>';
+}
+function editQuest(id,mode){
+  const q=quest(id);if(!q)return;let armed=false,timer=null;mode=mode||(q.notes?'view':'edit');
+  modal(`<div class="card qedit" role="dialog" aria-label="Quest bearbeiten" style="--qc:${q.color}">
+    <div class="main">
+      <div class="row between"><span class="label">Quest bearbeiten</span><span class="row"><span class="saved" id="eqSaved">Speichert automatisch</span><button class="btn sm ghost" id="eqX" aria-label="Schließen">✕</button></span></div>
+      <div class="row" style="flex-wrap:nowrap"><button class="iconbtn" id="eqIc" aria-label="Symbol wählen">${q.icon?esc(q.icon):'<span class="dot" style="--qc:'+q.color+';width:12px;height:12px"></span>'}</button><input class="field" id="eqT" value="${esc(q.title)}" style="font-size:18px;font-weight:500;border-color:transparent;background:none" aria-label="Name"></div>
+      <div class="icongrid" id="eqIcons" hidden>${ICONS.map(i=>`<button type="button" data-icon="${i}">${i}</button>`).join('')}<button type="button" data-icon="" title="Kein Symbol" style="font-size:12px;color:var(--muted)">✕</button></div>
+      <label class="meta" style="display:grid;gap:4px">Woran merkst du, dass sie geschafft ist?<input class="field" id="eqDesc" value="${esc(q.desc||'')}" placeholder="z. B. Bachelorarbeit bis 31. März abgegeben"></label>
+      <div class="mdbar"><button type="button" class="${mode==='view'?'on':''}" data-mdmode="view">Ansicht</button><button type="button" class="${mode==='edit'?'on':''}" data-mdmode="edit">Bearbeiten</button><span style="flex:1"></span>
+        ${mode==='edit'?`<button type="button" data-ins="# ">H1</button><button type="button" data-ins="## ">H2</button><button type="button" data-wrap="**">B</button><button type="button" data-wrap="*">I</button><button type="button" data-wrap="\`">&lt;/&gt;</button><button type="button" data-ins="- ">• Liste</button><button type="button" data-ins="1. ">1.</button><button type="button" data-ins="- [ ] ">☐</button><button type="button" data-ins="---">—</button>`:''}</div>
+      ${mode==='edit'?`<textarea class="field notes-edit" id="eqN" placeholder="Plan, Gründe, Meilensteine, Checklisten …&#10;- [ ] erster Schritt">${esc(q.notes||'')}</textarea>`:`<div class="md" id="eqMd">${md(q.notes)}</div>`}
+    </div>
+    <div class="side">
+      <div class="sec"><span class="label">Farbe</span><div class="swatches">${SWATCHES.map(c=>`<button type="button" data-col="${c}" class="${c===q.color?'on':''}" style="background:${c}" aria-label="Farbe ${c}"></button>`).join('')}<label title="Eigene Farbe">＋<input type="color" id="eqCol" value="${/^#[0-9a-f]{6}$/i.test(q.color)?q.color:'#a78bfa'}" aria-label="Eigene Farbe"></label></div></div>
+      <label class="meta" style="display:grid;gap:4px">Wochenziel in Stunden<input class="field" id="eqTg" type="number" min="0" step="0.5" value="${q.target||''}" placeholder="optional"></label>
+      <button class="btn" id="eqA">${q.archived?'↺ Wieder aktivieren':'✓ Quest abschließen'}</button>
+      <button class="btn ghost danger" id="eqD" style="justify-self:start">Löschen</button>
+      <div class="meta" id="eqW"></div>
+    </div></div>`);
+  const saved=()=>{const el=$('#eqSaved');if(!el)return;el.textContent='Gespeichert';el.classList.add('flash');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('flash'),900)};
+  const later=fn=>{clearTimeout(timer);timer=setTimeout(()=>{fn();save();render();saved()},350)};
+  $('#eqX').onclick=closeModal;
+  $('#eqT').oninput=e=>later(()=>{const v=e.target.value.trim();if(v)q.title=v});
+  $('#eqDesc').oninput=e=>later(()=>{q.desc=e.target.value.trim()});
+  $('#eqTg').oninput=e=>later(()=>{q.target=Math.max(0,+e.target.value||0)});
+  $('#eqIc').onclick=()=>{$('#eqIcons').hidden=!$('#eqIcons').hidden};
+  document.querySelectorAll('[data-icon]').forEach(b=>b.onclick=()=>{q.icon=b.dataset.icon;save();render();editQuest(id,mode)});
+  const setCol=c=>{q.color=c;S.tasks;save();render();editQuest(id,mode)};
+  document.querySelectorAll('[data-col]').forEach(b=>b.onclick=()=>setCol(b.dataset.col));
+  $('#eqCol').onchange=e=>setCol(e.target.value);
+  document.querySelectorAll('[data-mdmode]').forEach(b=>b.onclick=()=>{const n=$('#eqN');if(n){q.notes=n.value;save()}editQuest(id,b.dataset.mdmode)});
+  const n=$('#eqN');
+  if(n){n.oninput=()=>later(()=>{q.notes=n.value});
+    const edit=(fn)=>{const a=n.selectionStart,b=n.selectionEnd;const r=fn(n.value,a,b);n.value=r.v;n.focus();n.setSelectionRange(r.a,r.b);q.notes=n.value;save();saved()};
+    document.querySelectorAll('[data-ins]').forEach(b=>b.onclick=()=>edit((v,a)=>{const ls=v.lastIndexOf('\n',a-1)+1;const ins=b.dataset.ins==='---'?'---\n':b.dataset.ins;return {v:v.slice(0,ls)+ins+v.slice(ls),a:a+ins.length,b:a+ins.length}}));
+    document.querySelectorAll('[data-wrap]').forEach(b=>b.onclick=()=>edit((v,a,c)=>{const w=b.dataset.wrap;return {v:v.slice(0,a)+w+v.slice(a,c)+w+v.slice(c),a:a+w.length,b:c+w.length}}));
+    setTimeout(()=>n.focus(),0)}
+  document.querySelectorAll('[data-mdline]').forEach(cb=>cb.onchange=()=>{const ls=(q.notes||'').split('\n');const i=+cb.dataset.mdline;ls[i]=ls[i].replace(/\[( |x|X)\]/,cb.checked?'[x]':'[ ]');q.notes=ls.join('\n');save();saved();cb.closest('li').classList.toggle('done',cb.checked)});
+  $('#eqA').onclick=()=>{q.archived=!q.archived;closeModal();commit();if(q.archived)toast('Quest abgeschlossen',()=>{q.archived=false;commit()})};
+  $('#eqD').onclick=()=>{if(!armed){armed=true;$('#eqD').textContent='Wirklich löschen?';$('#eqW').textContent='Aufgaben bleiben erhalten und zählen dann zu „Andere“. Meilensteine werden entfernt.';return}
+    S.quests=S.quests.filter(x=>x.id!==id);S.tasks.forEach(t=>{if(t.questId===id)t.questId=null});S.sessions.forEach(s=>{if(s.q===id)s.q=null});S.milestones=S.milestones.filter(m=>m.questId!==id);closeModal();commit()};
+}
+function openSettings(){
+  modal(`<form class="card form" id="st"><div class="label">Einstellungen</div>
+    <label>Wochenziel Quest-Stunden<input class="field" id="stTg" type="number" min="0" step="1" value="${S.settings.weeklyTarget}"></label>
+    <label>Darstellung<select class="field" id="stTh">${[['auto','Wie das System'],['dark','Dunkel'],['light','Hell']].map(([v,l])=>`<option value="${v}" ${S.settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label>
+    <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px">
+      <span class="label">Konto</span>
+      ${sbUser?`<div class="row between"><span style="font-size:13px">Angemeldet als ${esc(sbUser.email||'')}</span><button type="button" class="btn sm" id="stOut">Abmelden</button></div>`
+        :sb?`<div class="row between"><span class="muted" style="font-size:13px">Nicht angemeldet, Daten nur auf diesem Gerät.</span><button type="button" class="btn sm" id="stIn">Anmelden</button></div>`
+        :`<span class="muted" style="font-size:13px">Kein Server verbunden, Daten nur auf diesem Gerät.</span>`}
+    </div>
+    <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px">
+      <span class="label">Daten sichern und übernehmen</span>
+      <div class="row"><button type="button" class="btn sm" id="stCopy">Alle Daten kopieren</button><label class="btn sm" style="display:inline-block;color:var(--fg);font-size:12px">Datei laden<input type="file" id="stFile" accept=".json,application/json" hidden></label></div>
+      <textarea class="field" id="stImp" rows="3" placeholder="Kopierte Daten hier einfügen, um sie zu übernehmen …" aria-label="Daten importieren"></textarea>
+      <div class="row between"><span class="meta" id="stMsg"></span><button type="button" class="btn sm" id="stImpBtn">Importieren</button></div>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" id="stC">Abbrechen</button><button class="btn accent">Speichern</button></div></form>`);
+  $('#stC').onclick=closeModal;
+  $('#st').onsubmit=e=>{e.preventDefault();S.settings.weeklyTarget=Math.max(0,+$('#stTg').value||0);S.settings.theme=$('#stTh').value;closeModal();commit()};
+  const out=$('#stOut');if(out)out.onclick=async()=>{await sb.auth.signOut();sbUser=null;setSync('Abgemeldet, nur lokal');closeModal();render()};
+  const inn=$('#stIn');if(inn)inn.onclick=()=>showLogin();
+  const msg=t=>{$('#stMsg').textContent=t};
+  $('#stCopy').onclick=()=>{const txt=JSON.stringify(S);
+    navigator.clipboard.writeText(txt).then(()=>msg('In die Zwischenablage kopiert.'),()=>{$('#stImp').value=txt;$('#stImp').select();msg('Text markiert, kopiere ihn mit Strg C.')})};
+  $('#stFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#stImp').value=r.result;msg('Datei geladen. Jetzt „Importieren“ klicken.')};r.readAsText(f)};
+  let armed=false;
+  $('#stImpBtn').onclick=()=>{let o;try{o=JSON.parse($('#stImp').value)}catch(e){msg('Das sind keine gültigen Quest-Daten.');return}
+    if(!o||typeof o!=='object'||!Array.isArray(o.tasks)){msg('Das sind keine gültigen Quest-Daten.');return}
+    if(!armed){armed=true;$('#stImpBtn').textContent='Wirklich ersetzen?';msg(`${o.tasks.length} Aufgaben, ${(o.quests||[]).length} Quests. Die aktuellen Daten werden ersetzt.`);return}
+    stopTimer();S=migrate(o);S.running=null;closeModal();commit();toast('Daten übernommen')};
+}
+function showLogin(note){
+  if(!sb)return;
+  modal(`<form class="card form" id="lg"><div class="label">Anmelden</div>
+    <p class="muted" style="margin:0;font-size:13px">Mit einem Konto sind deine Daten in der Desktop-App, im Browser und auf dem Handy gleich.</p>
+    <label>E-Mail<input class="field" type="email" id="lgE" autocomplete="username" required></label>
+    <label>Passwort<input class="field" type="password" id="lgP" autocomplete="current-password" minlength="6" required></label>
+    <div class="meta" id="lgW">${esc(note||'')}</div>
+    <div class="row between"><button type="button" class="btn ghost" id="lgL">Ohne Konto weiter</button><span class="row"><button type="button" class="btn" id="lgS">Konto anlegen</button><button class="btn accent">Anmelden</button></span></div></form>`);
+  const w=t=>{$('#lgW').textContent=t};
+  const de=m=>/invalid login/i.test(m)?'E-Mail oder Passwort ist falsch.':/not confirmed/i.test(m)?'Bitte bestätige zuerst den Link in der E-Mail.':/already registered/i.test(m)?'Für diese E-Mail gibt es schon ein Konto. Melde dich an.':/at least 6/i.test(m)?'Das Passwort braucht mindestens 6 Zeichen.':m;
+  $('#lgL').onclick=()=>{try{sessionStorage.setItem('quest-local','1')}catch(e){}closeModal()};
+  $('#lg').onsubmit=async e=>{e.preventDefault();w('Melde an …');
+    const {data,error}=await sb.auth.signInWithPassword({email:$('#lgE').value.trim(),password:$('#lgP').value});
+    if(error)return w(de(error.message));closeModal();onSignedIn(data.user)};
+  $('#lgS').onclick=async()=>{const email=$('#lgE').value.trim(),password=$('#lgP').value;if(!email||password.length<6)return w('Gib E-Mail und ein Passwort mit mindestens 6 Zeichen ein.');w('Lege Konto an …');
+    const {data,error}=await sb.auth.signUp({email,password});
+    if(error)return w(de(error.message));
+    if(data.session){closeModal();onSignedIn(data.user)}else w('Fast fertig: Öffne den Link in der E-Mail, die gerade kam, und melde dich danach hier an.')};
+  setTimeout(()=>$('#lgE')?.focus(),0);
+}
+function openRecurring(){
+  const list=S.recurring.map(r=>`<div class="row" style="padding:5px 0;flex-wrap:nowrap;border-bottom:1px solid var(--line)"><span class="dot" style="--qc:${qColor(r.questId)}"></span><span style="flex:1;min-width:0;display:grid"><span style="overflow-wrap:anywhere">${esc(r.title)}</span><span class="meta">${esc(recurText(r))}</span></span><button type="button" class="btn sm ghost" data-editrec="${r.id}">Bearbeiten</button><button type="button" class="btn sm ghost" data-delrec="${r.id}" aria-label="Entfernen">✕</button></div>`).join('')||'<div class="muted" style="font-size:13px">Noch keine. Zum Beispiel „Morning Check-in“ jeden Werktag oder „Weekly Planning“ am Montag.</div>';
+  modal(`<form class="card form" id="rc"><div class="label">Wiederkehrende Aufgaben</div>
+    <div>${list}</div>
+    <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:10px">
+      <input class="field" id="rcT" placeholder="Neue wiederkehrende Aufgabe …" autocomplete="off" aria-label="Titel">
+      <select class="field" id="rcQ" aria-label="Quest">${questOptions()}</select>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" id="rcC">Schließen</button><button class="btn accent">Weiter: Rhythmus wählen</button></div>
+    <div class="meta">Bereits angelegte Aufgaben bleiben erhalten, wenn du eine Wiederholung entfernst.</div></form>`);
+  $('#rcC').onclick=closeModal;
+  document.querySelectorAll('[data-delrec]').forEach(b=>b.onclick=()=>{S.recurring=S.recurring.filter(r=>r.id!==b.dataset.delrec);S.tasks.forEach(t=>{if(t.recurId===b.dataset.delrec)t.recurId=null});save();render();openRecurring()});
+  document.querySelectorAll('[data-editrec]').forEach(b=>b.onclick=()=>openRepeat(S.recurring.find(r=>r.id===b.dataset.editrec),null,openRecurring));
+  $('#rc').onsubmit=e=>{e.preventDefault();const t=$('#rcT').value.trim();if(!t)return;
+    openRepeat({id:null,title:t,questId:$('#rcQ').value||null,freq:'week',interval:1,days:[0,1,2,3,4],pin:'none',start:today(),end:null},null,openRecurring)};
+  setTimeout(()=>$('#rcT')?.focus(),0);
+}
+// Dialog für eine Wiederholungsregel. Mit Aufgabe: Regel hängt an dieser Aufgabe.
+function openRepeat(rule,t,after){
+  const r=rule?{...rule}:{id:null,title:t.title,questId:t.questId,freq:'week',interval:1,days:[wdIdx(t.day||today())],pin:'none',start:t.day&&t.day>=today()?t.day:today(),end:null};
+  if(!r.freq)r.freq='week';if(!r.interval)r.interval=1;if(!r.start)r.start=today();
+  const unit={day:['Tag','Tage'],week:['Woche','Wochen'],month:['Monat','Monate'],year:['Jahr','Jahre']};
+  modal(`<form class="card form" id="rp"><div class="label">Wiederholen · ${esc(r.title)}</div>
+    <div class="row"><label style="max-width:90px">Alle<input class="field" type="number" min="1" id="rpN" value="${r.interval}"></label>
+      <label>Intervall<select class="field" id="rpF">${Object.entries(unit).map(([k,[a]])=>`<option value="${k}" ${r.freq===k?'selected':''}>${a}</option>`).join('')}</select></label></div>
+    <div id="rpDays" class="wd" ${r.freq==='week'?'':'hidden'}>${WD.map((w,i)=>`<label><input type="checkbox" value="${i}" ${(r.days||[]).includes(i)?'checked':''}><span>${w}</span></label>`).join('')}</div>
+    <label>Anheften<select class="field" id="rpP"><option value="none" ${r.pin!=='top'&&r.pin!=='bottom'?'selected':''}>Nicht angeheftet</option><option value="top" ${r.pin==='top'?'selected':''}>Oben in der Tagesliste</option><option value="bottom" ${r.pin==='bottom'?'selected':''}>Unten in der Tagesliste</option></select></label>
+    <div class="row"><label>Beginn<input class="field" type="date" id="rpS" value="${r.start}"></label>
+      <label>Ende<select class="field" id="rpE"><option value="">Nie</option><option value="date" ${r.end?'selected':''}>An einem Datum</option></select></label>
+      <label id="rpEdWrap" ${r.end?'':'hidden'}>Datum<input class="field" type="date" id="rpEd" value="${r.end||''}"></label></div>
+    <div class="meta" id="rpTxt"></div>
+    <div class="row between">${rule&&rule.id?`<button type="button" class="btn ghost danger" id="rpDel">Wiederholung entfernen</button>`:'<span></span>'}<span class="row"><button type="button" class="btn ghost" id="rpC">Abbrechen</button><button class="btn accent">Speichern</button></span></div></form>`);
+  const read=()=>{r.interval=Math.max(1,+$('#rpN').value||1);r.freq=$('#rpF').value;r.days=[...document.querySelectorAll('#rpDays input:checked')].map(x=>+x.value);r.pin=$('#rpP').value;r.start=$('#rpS').value||today();r.end=$('#rpE').value?($('#rpEd').value||null):null;$('#rpTxt').textContent=recurText(r)};
+  $('#rpF').onchange=()=>{$('#rpDays').hidden=$('#rpF').value!=='week';read()};
+  $('#rpE').onchange=()=>{$('#rpEdWrap').hidden=!$('#rpE').value;read()};
+  document.querySelectorAll('#rp input,#rp select').forEach(i=>i.addEventListener('input',read));read();
+  const done=()=>{closeModal();if(t&&sheetId===t.id)openTask(t.id);if(after)after()};
+  $('#rpC').onclick=done;
+  const del=$('#rpDel');if(del)del.onclick=()=>{S.recurring=S.recurring.filter(x=>x.id!==rule.id);S.tasks.forEach(x=>{if(x.recurId===rule.id)x.recurId=null});save();render();done()};
+  $('#rp').onsubmit=e=>{e.preventDefault();read();if(r.freq==='week'&&!r.days.length){$('#rpTxt').textContent='Wähle mindestens einen Wochentag.';return}
+    let stored=r.id&&S.recurring.find(x=>x.id===r.id);
+    if(stored){const made=stored.made;Object.assign(stored,r,{made})}else{r.id=uid();r.made={};S.recurring.push(r);stored=r}
+    if(t){t.recurId=stored.id;if(t.day)stored.made[t.day]=true}
+    save();render();toast('Wiederholung gespeichert: '+recurText(stored));done()};
+}
+const toMs=(dk,hm)=>{const [h,m]=(hm||'0:0').split(':').map(Number);const d=keyToDate(dk);d.setHours(h||0,m||0,0,0);return d.getTime()};
+function editSession(id){
+  const s=S.sessions.find(x=>x.id===id);if(!s)return;const t=task(s.t);const dk=dayKey(s.s);let armed=false;
+  modal(`<form class="card form" id="es"><div class="label">Sitzung · ${fmtDayLong(dk)}</div>
+    <div style="font-size:15px">${esc(t?t.title:qName(s.q))}</div><div>${pill(s.q)}</div>
+    <div class="row"><label>Datum<input class="field" type="date" id="esDt" value="${dk}"></label><label>Beginn<input class="field" type="time" id="esA" value="${fmtTime(s.s)}"></label><label>Ende<input class="field" type="time" id="esB" value="${fmtTime(s.e)}"></label><label>Minuten<input class="field" type="number" min="1" id="esM" value="${Math.round((s.e-s.s)/60000)}"></label></div>
+    <div class="meta" id="esW"></div>
+    <div class="row between"><button type="button" class="btn ghost danger" id="esD">Löschen</button><span class="row">${t?`<button type="button" class="btn ghost" id="esT">Aufgabe öffnen</button>`:''}<button type="button" class="btn ghost" id="esC">Abbrechen</button><button class="btn accent">Speichern</button></span></div></form>`);
+  $('#esC').onclick=closeModal;
+  const esT=$('#esT');if(esT)esT.onclick=()=>editTask(t.id);
+  // Dauer und Ende hängen zusammen: Minuten ändern verschiebt das Ende, Ende ändern passt die Minuten an
+  const day=()=>$('#esDt').value||dk;
+  const endOf=()=>{let a=toMs(day(),$('#esA').value),b=toMs(day(),$('#esB').value);if(b<=a)b+=86400000;return [a,b]};
+  $('#esB').oninput=$('#esA').oninput=()=>{const [a,b]=endOf();$('#esM').value=Math.round((b-a)/60000)};
+  $('#esM').oninput=()=>{const m=Math.max(1,+$('#esM').value||0);$('#esB').value=fmtTime(toMs(day(),$('#esA').value)+m*60000)};
+  $('#esD').onclick=()=>{if(!armed){armed=true;$('#esD').textContent='Wirklich löschen?';return}
+    if(t)t.seconds=Math.max(0,(t.seconds||0)-(s.e-s.s)/1000);S.sessions=S.sessions.filter(x=>x.id!==id);closeModal();commit()};
+  $('#es').onsubmit=e=>{e.preventDefault();const [a,b]=endOf();if(!(b>a)){$('#esW').textContent='Das Ende muss nach dem Beginn liegen.';return}
+    if(t)t.seconds=Math.max(0,(t.seconds||0)+((b-a)-(s.e-s.s))/1000);s.s=a;s.e=b;closeModal();commit()};
+}
+function addTimeModal(){
+  const dk=view==='kalender'&&calDay?calDay:today();
+  const now=new Date();const end=fmtTime(Math.floor(now.getTime()/300000)*300000);const start=fmtTime(Math.floor(now.getTime()/300000)*300000-3600000);
+  let chosen=null,qSel=ui.questFilter||'',sel=-1,hits=[];
+  modal(`<form class="card form" id="at"><div class="label">Arbeit erfassen</div>
+    <label>Aufgabe<input class="field" id="atQ" placeholder="Aufgabe suchen oder neue eintippen …" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="atL"></label>
+    <div class="sugg" id="atL" role="listbox" hidden></div>
+    <div class="meta" id="atHint">Wähle eine bestehende Aufgabe oder leg eine erledigte Aufgabe neu an.</div>
+    <div class="row"><label>Datum<input class="field" type="date" id="atD" value="${dk}"></label><label>Beginn<input class="field" type="time" id="atA" value="${start}"></label><label>Ende<input class="field" type="time" id="atB" value="${end}"></label></div>
+    <div class="sec"><span class="label">Quest</span><div class="chips" id="atQs"></div></div>
+    <div class="meta" id="atW" style="color:var(--danger)"></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" id="atC">Abbrechen</button><button class="btn accent">Arbeit erfassen</button></div></form>`);
+  const chips=()=>{$('#atQs').innerHTML=[{id:'',title:'Keine Quest',color:'var(--other)'},...activeQuests()].map(q=>`<button type="button" class="chip ${qSel===q.id?'on':''}" data-atq="${q.id}" ${chosen?'disabled':''}><span class="dot" style="--qc:${q.color}"></span> ${esc(q.title)}</button>`).join('');
+    document.querySelectorAll('[data-atq]').forEach(b=>b.onclick=()=>{qSel=b.dataset.atq;chips()})};
+  const inp=$('#atQ'),list=$('#atL');
+  const draw=()=>{const q=inp.value.trim().toLowerCase();
+    const pool=[...S.tasks].sort((a,b)=>(b.doneAt||Date.now())-(a.doneAt||Date.now()));
+    hits=(q?pool.filter(t=>t.title.toLowerCase().includes(q)):[...queue(),...pool.filter(t=>t.doneAt)]).filter((t,i,a)=>a.indexOf(t)===i).slice(0,8);
+    list.innerHTML=hits.map((t,i)=>`<button type="button" class="${i===sel?'sel':''}" data-ati="${i}" role="option"><span class="dot" style="--qc:${qColor(t.questId)}"></span><span style="flex:1;min-width:0">${esc(t.title)}</span><span class="meta">${t.doneAt?'erledigt':t.day?fmtDM(t.day):'Backlog'}</span></button>`).join('')
+      +(q&&!hits.some(t=>t.title.toLowerCase()===q)?`<button type="button" data-atnew><span class="muted">＋</span> „${esc(inp.value.trim())}“ als neue Aufgabe</button>`:'');
+    list.hidden=!list.innerHTML;inp.setAttribute('aria-expanded',String(!list.hidden));
+    list.querySelectorAll('[data-ati]').forEach(b=>b.onmousedown=e=>{e.preventDefault();pick(hits[+b.dataset.ati])});
+    const nb=list.querySelector('[data-atnew]');if(nb)nb.onmousedown=e=>{e.preventDefault();pick(null)}};
+  const pick=t=>{chosen=t;if(t){inp.value=t.title;qSel=t.questId||'';$('#atHint').textContent='Zeit wird dieser Aufgabe gutgeschrieben.'}else $('#atHint').textContent='Wird als neue, erledigte Aufgabe angelegt.';list.hidden=true;chips()};
+  inp.oninput=()=>{chosen=null;sel=-1;chips();draw()};inp.onfocus=draw;inp.onblur=()=>setTimeout(()=>{list.hidden=true},120);
+  inp.onkeydown=e=>{if(list.hidden)return;if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,hits.length-1);draw()}else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);draw()}else if(e.key==='Enter'&&sel>=0){e.preventDefault();pick(hits[sel])}};
+  chips();$('#atC').onclick=closeModal;
+  $('#at').onsubmit=e=>{e.preventDefault();const title=inp.value.trim();if(!title){$('#atW').textContent='Gib an, woran du gearbeitet hast.';return}
+    const d=$('#atD').value||dk;let a=toMs(d,$('#atA').value),b=toMs(d,$('#atB').value);if(b<=a)b+=DAY;if(!$('#atA').value||!$('#atB').value){$('#atW').textContent='Bitte Beginn und Ende eintragen.';return}
+    let t=chosen||S.tasks.find(x=>x.title.toLowerCase()===title.toLowerCase());
+    if(!t){t={id:uid(),title,questId:qSel||null,day:d,order:nextOrder(d),seconds:0,doneAt:b,notes:''};S.tasks.push(t)}
+    S.sessions.push({id:uid(),q:t.questId||null,t:t.id,s:a,e:b});t.seconds=(t.seconds||0)+(b-a)/1000;
+    closeModal();commit();toast(`${fmtH((b-a)/1000)} für „${t.title}“ erfasst`)};
+  setTimeout(()=>inp.focus(),0);
+}
+function pickTask(){
+  const list=[...queue(),...backlog()];
+  openPalette(list.map(t=>({label:t.title,hint:qName(t.questId),run:()=>focusTask(t.id)})),'Welche Aufgabe willst du fokussieren?');
+}
+function openPalette(items,ph){
+  items=items||[
+    {label:'Neue Aufgabe',hint:'N',run:quickAdd},
+    {label:'Fokus starten',hint:'F',run:()=>go('fokus')},
+    ...Object.entries(VIEWS).filter(([k])=>k!=='fokus').map(([k,l])=>({label:'Gehe zu '+l,hint:VKEYS[k],run:()=>go(k)})),
+    {label:'Arbeit erfassen',run:addTimeModal},
+    {label:'Wiederkehrende Aufgaben',run:openRecurring},
+    {label:'Neue Quest',run:()=>{ui.questTab='aktiv';go('quests');setTimeout(()=>$('#newQuestIn')?.focus(),0)}},
+    {label:'Aufgaben ohne Quest ein-/ausblenden',hint:'V',run:toggleOthers},
+    {label:'Design wechseln (System / Dunkel / Hell)',run:()=>{const o=['auto','dark','light'];S.settings.theme=o[(o.indexOf(S.settings.theme||'auto')+1)%3];commit();toast('Design: '+({auto:'wie das System',dark:'dunkel',light:'hell'})[S.settings.theme])}},
+    {label:'Planlayout ändern (schmale / breite Spalten)',run:()=>{ui.planWide=!ui.planWide;saveUi();planJump='today';go('plan')}},
+    {label:'Tastenkürzel',hint:'?',run:openKeys},
+    {label:'Einstellungen',hint:'Strg ,',run:openSettings},
+    {label:'Einführung noch einmal zeigen',run:()=>openTour(0)},
+    ...queue().map(t=>({label:'Fokus: '+t.title,hint:qName(t.questId),run:()=>focusTask(t.id)}))
+  ];
+  let sel=0,filtered=items;
+  modal(`<div class="card cmd"><input id="cmdI" placeholder="${esc(ph||'Befehl oder Aufgabe suchen …')}" autocomplete="off" aria-label="Suchen"><div class="cmd-list" id="cmdL"></div></div>`);
+  const draw=()=>{$('#cmdL').innerHTML=filtered.map((it,i)=>`<div class="cmd-item ${i===sel?'sel':''}" data-i="${i}"><span>${esc(it.label)}</span><span class="meta">${esc(it.hint||'')}</span></div>`).join('')||'<div class="muted" style="padding:8px 10px">Nichts gefunden.</div>';
+    document.querySelectorAll('.cmd-item').forEach(el=>el.onclick=()=>{const it=filtered[+el.dataset.i];closeModal();it.run()});
+    document.querySelector('.cmd-item.sel')?.scrollIntoView({block:'nearest'})};
+  draw();
+  const inp=$('#cmdI');
+  inp.oninput=()=>{const q=inp.value.toLowerCase();filtered=items.filter(it=>(it.label+' '+(it.hint||'')).toLowerCase().includes(q));sel=0;draw()};
+  inp.onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,filtered.length-1);draw()}else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);draw()}else if(e.key==='Enter'){e.preventDefault();const it=filtered[sel];if(it){closeModal();it.run()}}};
+  setTimeout(()=>inp.focus(),0);
+}
+
+function toggleOthers(){if(view==='plan'){ui.planHideOthers=!ui.planHideOthers}else{ui.othersOpen=!ui.othersOpen}saveUi();render();toast(view==='plan'?(ui.planHideOthers?'Aufgaben ohne Quest ausgeblendet':'Aufgaben ohne Quest sichtbar'):(ui.othersOpen?'Andere Aufgaben eingeblendet':'Andere Aufgaben eingeklappt'))}
+function openKeys(){
+  const K=[['N','Neue Aufgabe'],['F','Fokus öffnen'],['1 – 5','Heute, Plan, Kalender, Quests, Review'],['Leertaste','Timer der Aufgabe unter der Maus starten/stoppen (im Fokus: aktuelle Aufgabe)'],['Strg ↵','Im Fokus: Aufgabe erledigen'],['V','Aufgaben ohne Quest ein-/ausblenden'],['Strg K','Befehle und Suche'],['Strg ,','Einstellungen'],['?','Diese Übersicht'],['Esc','Panel oder Dialog schließen'],['Alt ← →','Quest-Karte verschieben (wenn ausgewählt)']];
+  modal(`<div class="card form"><div class="row between"><span class="label">Tastenkürzel</span><button class="btn sm ghost" id="kX" aria-label="Schließen">✕</button></div><div class="keys">${K.map(([k,l])=>`<kbd>${k}</kbd><span>${l}</span>`).join('')}</div></div>`);
+  $('#kX').onclick=closeModal;
+}
+const TOUR=[
+  ['Willkommen bei Quest','Plane nach Tagen statt nach Uhrzeiten. Eine Aufgabe zur Zeit, die Zeit läuft mit, und am Ende der Woche siehst du, wie viel deine Quests vorangekommen sind.'],
+  ['Quests','Quests sind deine 2–4 großen Ziele. Jede Aufgabe gehört zu einer Quest oder zu „Andere“. Gezählt werden nur Quest-Stunden.'],
+  ['Heute und Plan','Oben stehen die Quest-Aufgaben in deiner Reihenfolge, „Andere“ blendest du mit V ein und aus. Im Plan ziehst du Aufgaben zwischen Tagen hin und her.'],
+  ['Fokus und Zeit','Fahr mit der Maus über eine Aufgabe und drück die Leertaste, oder öffne den Fokus mit F. Ein Klick auf eine Aufgabe öffnet das Panel: Datum, Wiederholung, Quest, Notizen und alle erfassten Zeiten.'],
+  ['Wochen-Review','Einmal pro Woche: Wie viele Quest-Stunden? Was lief gut, was nicht? Passen Tage und Ziele zusammen? Alle Befehle findest du mit Strg K.']];
+function openTour(i){
+  i=Math.max(0,Math.min(TOUR.length-1,i||0));const [h,p]=TOUR[i];
+  modal(`<div class="card form tour"><div class="dots">${TOUR.map((_,j)=>`<i class="${j===i?'on':''}"></i>`).join('')}</div><h2>${h}</h2><p>${p}</p>
+    <div class="row between"><button class="btn ghost" id="tSkip">${i===TOUR.length-1?'Schließen':'Überspringen'}</button><span class="row">${i?'<button class="btn" id="tBack">Zurück</button>':''}<button class="btn accent" id="tNext">${i===TOUR.length-1?'Los geht’s':'Weiter'}</button></span></div></div>`);
+  const end=()=>{ui.tourDone=true;saveUi();closeModal()};
+  $('#tSkip').onclick=end;$('#tNext').onclick=()=>i===TOUR.length-1?end():openTour(i+1);const b=$('#tBack');if(b)b.onclick=()=>openTour(i-1);
+}
+
+// ================= Tastatur =================
+document.addEventListener('keydown',e=>{
+  const mod=e.metaKey||e.ctrlKey;
+  if(mod&&e.key.toLowerCase()==='k'){e.preventDefault();modalOpen()?closeModal():openPalette();return}
+  if(mod&&e.key===','){e.preventDefault();openSettings();return}
+  if(e.key==='Escape'){if(modalOpen()){closeModal();return}if(sheetOpen()){closeSheet();return}if(view==='fokus'){go('heute');return}}
+  if(modalOpen())return;
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'')||document.activeElement?.isContentEditable;
+  if(mod&&e.key==='Enter'&&view==='fokus'){e.preventDefault();focusDone();return}
+  if(typing||mod||e.altKey)return;
+  const k=e.key.toLowerCase();
+  if(e.key==='?'){e.preventDefault();openKeys()}
+  else if(k==='n'){e.preventDefault();quickAdd()}
+  else if(k==='f'){e.preventDefault();closeSheet();go('fokus')}
+  else if(k==='v'&&(view==='heute'||view==='plan')){e.preventDefault();toggleOthers()}
+  else if(e.code==='Space'&&view==='fokus'){e.preventDefault();toggleTimer()}
+  else if(e.code==='Space'&&(hoverId||sheetId)){e.preventDefault();const id=hoverId||sheetId;const t=task(id);if(!t||t.doneAt)return;
+    if(S.running&&S.running.taskId===id){stopTimer();commit();toast(`Timer gestoppt · ${t.title}`)}else{startTimer(id);commit();toast(`Timer läuft · ${t.title}`)}if(sheetId)openTask(sheetId)}
+  else if(sheetOpen())return;
+  else{const v=Object.keys(VKEYS).find(x=>VKEYS[x]===e.key);if(v){e.preventDefault();go(v)}}
+});
+window.addEventListener('hashchange',()=>{const h=hashView();if(h&&h!==view){view=h;render()}});
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',applyTheme);
+
+// Laufende Anzeigen, nur Darstellung
+let tick=0;
+setInterval(()=>{
+  tick++;
+  if(!S.running){document.title='Quest';return}
+  const t=task(S.running.taskId);if(!t)return;
+  const c=$('#clock');if(c&&focusId===t.id)c.textContent=fmtClock(taskSec(t));
+  document.querySelectorAll(`[data-live-task="${t.id}"]`).forEach(el=>el.textContent=fmtH(taskSec(t)));
+  const lt=$('[data-live-today]');if(lt)lt.textContent=fmtH(qsum(sessionsBetween(...dayRange(today()))));
+  document.title=fmtClock(taskSec(t))+' · '+t.title;
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'');
+  if(tick%30===0&&(view==='kalender'||view==='review')&&!modalOpen()&&!typing&&!dragId)render();
+},1000);
+
+// ================= Synchronisierung über Supabase =================
+// Eine Zeile pro Konto in der Tabelle quest_state. Gewinnt der neuere Stand (updated_at).
+const CFG=window.QUEST_CONFIG||{};
+let sb=null,sbUser=null,channel=null,writing=false,dirty=false,flushTimer=null,syncText='Lokal gespeichert';
+const setSync=t=>{syncText=t;const el=$('#sync');if(el)el.textContent=t};
+function queueRemote(){if(!sb||!sbUser)return;dirty=true;clearTimeout(flushTimer);flushTimer=setTimeout(flush,800)}
+async function flush(){
+  if(!sb||!sbUser||writing||!dirty)return;writing=true;dirty=false;
+  try{
+    const {error}=await sb.from('quest_state').upsert({user_id:sbUser.id,state:S,updated_at:S.updatedAt});
+    if(error)throw error;setSync('Synchronisiert');
+  }catch(e){dirty=true;setSync(navigator.onLine?'Sync-Fehler, neuer Versuch …':'Offline, wird später synchronisiert');console.warn(e)}
+  writing=false;if(dirty)flushTimer=setTimeout(flush,5000);
+}
+function applyRemote(row){
+  if(!row||row.updated_at==null)return;
+  if(row.updated_at>S.updatedAt){
+    S=migrate(row.state);try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
+    const typing=/INPUT|TEXTAREA/.test(document.activeElement?.tagName||'');if(!modalOpen()&&!typing)render();
+  }else if(row.updated_at<S.updatedAt){dirty=true;flush()}
+}
+async function pull(){
+  if(!sb||!sbUser)return;
+  const {data,error}=await sb.from('quest_state').select('state,updated_at').eq('user_id',sbUser.id).maybeSingle();
+  if(error){setSync('Server nicht erreichbar, lokal gespeichert');console.warn(error);return}
+  if(data)applyRemote(data);else if(S.updatedAt){dirty=true;flush()}
+  setSync('Synchronisiert');
+}
+async function onSignedIn(user){
+  sbUser=user;setSync('Verbinde …');await pull();
+  if(channel)sb.removeChannel(channel);
+  channel=sb.channel('quest-'+user.id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'quest_state',filter:'user_id=eq.'+user.id},p=>{if(p.new)applyRemote(p.new)})
+    .subscribe();
+  render();setTimeout(maybeTour,600);
+}
+window.addEventListener('focus',()=>{if(sbUser)pull()});
+window.addEventListener('online',()=>{if(sbUser){dirty=true;flush();pull()}});
+(async()=>{
+  if(!window.supabase){setSync('Offline, nur lokal gespeichert');return}
+  if(!CFG.supabaseUrl||!CFG.supabaseKey){setSync('Kein Server eingerichtet, nur lokal');return}
+  try{
+    sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseKey,{auth:{persistSession:true,autoRefreshToken:true}});
+    const {data:{session}}=await sb.auth.getSession();
+    if(session)onSignedIn(session.user);
+    else{setSync('Nicht angemeldet, nur lokal');let skip=false;try{skip=sessionStorage.getItem('quest-local')==='1'}catch(e){}if(!skip)showLogin()}
+  }catch(e){console.warn(e);setSync('Server nicht erreichbar, lokal gespeichert')}
+})();
+
+render();
+function maybeTour(){if(!ui.tourDone&&!modalOpen())openTour(0)}
+setTimeout(maybeTour,1500);
+</script>
+
+</body>
+</html>

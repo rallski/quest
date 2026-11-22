@@ -226,10 +226,13 @@ textarea.field{resize:vertical;line-height:1.5}
 .form{display:grid;gap:12px}
 .form label{font-size:12px;color:var(--muted);display:grid;gap:4px}
 .form .row label{flex:1;min-width:120px}
-.sesrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto minmax(0,1fr) 52px auto;gap:6px;align-items:center}
+.sesrow{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
+.datechip{position:relative;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line-2);background:var(--raised);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.datechip::after{content:"▾";color:var(--faint);font-size:10px}
+.datechip input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.datechip:focus-within{outline:2px solid var(--accent);outline-offset:1px}
 .sesrow .field{padding:5px 6px;font-size:12.5px}
 .sesrow .dur{text-align:right}
-@media (max-width:520px){.sesrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto minmax(0,1fr) auto}.sesrow .dur{display:none}.sesrow input[type=date]{grid-column:1/-1}}
 .wd{display:flex;gap:4px;flex-wrap:wrap}
 .wd label{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0}
 .wd input{position:absolute;opacity:0;pointer-events:none}
@@ -313,6 +316,9 @@ textarea.field{resize:vertical;line-height:1.5}
 .exin{width:80px;flex:0 0 auto}
 .holdclock{font-family:var(--mono);font-size:20px;color:var(--accent);font-variant-numeric:tabular-nums}
 .exdef{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:grid;gap:4px}
+.exinline .excard{border:0;padding:0;background:none;gap:8px}
+.exinline .excard>.row.between>b{display:none}
+.excard .exsetsn{width:60px}
 .trkpick{display:grid;gap:4px}
 .trkopt{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line-2);background:var(--bg);border-radius:9px;padding:8px 10px;cursor:pointer;font-size:13px}
 .trkopt:hover{border-color:var(--accent)}
@@ -752,11 +758,11 @@ function currentFocus(){
 // Einträge liegen in S.logs: {id,name,type,unit,taskId,questId,day,at,vals:[...]}; Verlauf wird über den Namen zusammengeführt.
 // Sichtbar nur bei Quests mit quest.tracking === true.
 const TRACK_PRESETS=[
-  {key:'reps',icon:'🤸',label:'Sätze × Wiederholungen',hint:'z. B. Handstand-Liegestütze',type:'reps',unit:'Wdh.',name:''},
-  {key:'hold',icon:'⏱',label:'Halten in Sekunden',hint:'z. B. Handstand an der Wand',type:'hold',unit:'s',name:''},
-  {key:'pages',icon:'📖',label:'Seiten gelesen',hint:'Name des Buchs',type:'count',unit:'Seiten',name:''},
-  {key:'bars',icon:'🎹',label:'Takte gelernt',hint:'Name des Stücks',type:'count',unit:'Takte',name:''},
-  {key:'custom',icon:'✏️',label:'Eigene Zahl',hint:'Was zählst du?',type:'count',unit:'',name:''}];
+  {key:'reps',icon:'🤸',label:'Sätze × Wiederholungen',hint:'Name (optional), z. B. Handstand-Liegestütze',type:'reps',unit:'Wdh.',name:'Sätze × Wdh.'},
+  {key:'hold',icon:'⏱',label:'Halten in Sekunden',hint:'Name (optional), z. B. Handstand an der Wand',type:'hold',unit:'s',name:'Halten'},
+  {key:'pages',icon:'📖',label:'Seiten gelesen',hint:'',type:'count',unit:'Seiten',name:'Seiten gelesen'},
+  {key:'bars',icon:'🎹',label:'Takte gelernt',hint:'',type:'count',unit:'Takte',name:'Takte gelernt'},
+  {key:'custom',icon:'✏️',label:'Eigene Zahl',hint:'Was zählst du? z. B. Laufen',type:'count',unit:'',name:''}];
 const exKey=n=>(n||'').trim().toLowerCase();
 const exType=ex=>ex.type==='hold'||ex.type==='count'?ex.type:'reps';
 const exUnit=ex=>ex.unit||(exType(ex)==='hold'?'s':exType(ex)==='reps'?'Wdh.':'');
@@ -768,7 +774,8 @@ const lsum=l=>l.vals.reduce((a,b)=>a+b,0);
 function exSummary(l){if(!l||!l.vals.length)return '';
   if(l.type==='hold')return l.vals.map(v=>v+' s').join(' · ');
   if(l.type==='count')return lsum(l)+' '+(l.unit||'');
-  return l.vals.join(' · ')+` (${lsum(l)} Wdh.)`}
+  const g=[];l.vals.forEach(v=>{const x=g[g.length-1];if(x&&x[1]===v)x[0]++;else g.push([1,v])});
+  return g.map(([n,v])=>`${n} × ${v}`).join(' + ')+` (${lsum(l)} Wdh.)`}
 function exStats(ex){const ls=exLogs(ex.name).filter(l=>l.vals.length);const type=exType(ex);
   if(!ls.length)return '';
   if(type==='count')return `Insgesamt ${ls.reduce((a,l)=>a+lsum(l),0)} ${exUnit(ex)} · bester Tag ${Math.max(...ls.map(lsum))} ${exUnit(ex)}`;
@@ -794,15 +801,16 @@ function exCard(t,ex){
     <div class="exsets">${(l?l.vals:[]).map(chip).join('')||`<span class="meta">${empty}</span>`}${type==='count'&&l&&l.vals.length>1?`<span class="meta">= ${lsum(l)} ${esc(unit)} heute</span>`:''}</div>
     <div class="row">${type==='hold'
       ?`<button class="btn ${running?'':'accent'}" data-exhold>${running?'■ Stopp':'▶ Halten starten'}</button><span class="holdclock" ${running?'data-holdlive':''}>${running?fmtClock((Date.now()-holdRun.start)/1000):''}</span><span class="meta">oder</span><input class="field exin" type="number" min="1" value="${last}" aria-label="Sekunden"><button class="btn" data-exadd>+ Sekunden</button>`
-      :type==='reps'?`<input class="field exin" type="number" min="1" value="${last}" aria-label="Wiederholungen"><button class="btn accent" data-exadd>+ Satz</button>`
+      :type==='reps'?`<input class="field exin exsetsn" type="number" min="1" max="50" value="${prev&&!(l&&l.vals.length)?prev.vals.length:1}" aria-label="Sätze"><span class="muted">Sätze ×</span><input class="field exin exreps" type="number" min="1" value="${last}" aria-label="Wiederholungen"><span class="muted">Wdh.</span><button class="btn accent" data-exadd>Eintragen</button>`
       :`<input class="field exin" type="number" min="1" value="${last}" aria-label="${esc(unit)}"><button class="btn accent" data-exadd>+ ${esc(unit||'eintragen')}</button>`}</div>
   </div>`;
 }
 function bindExercises(t,root,rerender){
   root.querySelectorAll('.excard').forEach(card=>{const ex=(t.exercises||[]).find(x=>exKey(x.name)===exKey(card.dataset.exname));if(!ex)return;
-    const inp=card.querySelector('.exin');
-    card.querySelector('[data-exadd]')?.addEventListener('click',()=>{exAdd(t,ex,inp.value);rerender()});
-    inp?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();exAdd(t,ex,inp.value);rerender()}});
+    const inp=card.querySelector('.exreps')||card.querySelector('.exin');const setsIn=card.querySelector('.exsetsn');
+    const add=()=>{const n=setsIn?Math.max(1,Math.min(50,Math.round(+setsIn.value)||1)):1;for(let i=0;i<n;i++)exAdd(t,ex,inp.value);rerender()};
+    card.querySelector('[data-exadd]')?.addEventListener('click',add);
+    card.querySelectorAll('.exin').forEach(x=>x.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}}));
     card.querySelector('[data-exhold]')?.addEventListener('click',()=>{
       if(holdRun&&holdRun.taskId===t.id&&exKey(holdRun.name)===exKey(ex.name)){const s=Math.round((Date.now()-holdRun.start)/1000);holdRun=null;exAdd(t,ex,s);toast(`${s} s gehalten`)}
       else holdRun={taskId:t.id,name:ex.name,start:Date.now()};
@@ -810,19 +818,20 @@ function bindExercises(t,root,rerender){
     card.querySelectorAll('[data-exrm]').forEach(b=>b.addEventListener('click',()=>{const [id,i]=b.dataset.exrm.split(':');exRemove(id,+i);rerender()}));
   });
 }
-// Abschnitt im Aufgaben-Panel: nur bei Quests mit Tracking; Auswahl erst nach Klick
+// Abschnitt im Aufgaben-Panel: nur bei Quests mit Tracking; Auswahl erst nach Klick. Eintragen geht direkt hier oder im Fokus.
 let trackPick=null;
 function trackSection(t){
   if(!trackingOn(t)&&!(t.exercises||[]).length)return '';
   const list=(t.exercises||[]).map((ex,i)=>{const p=TRACK_PRESETS.find(x=>x.type===exType(ex)&&(x.type!=='count'||x.unit===exUnit(ex)))||TRACK_PRESETS[4];
-    return `<div class="exdef"><div class="row between"><span>${p.icon} <b>${esc(ex.name)}</b> <span class="meta">${exType(ex)==='count'?esc(exUnit(ex)):esc(p.label)}</span></span><button class="btn sm ghost" data-exdel="${i}" aria-label="Tracking entfernen">✕</button></div>${exHistory(ex)||'<div class="meta">Noch keine Einträge. Eintragen geht im Fokus.</div>'}</div>`}).join('');
+    return `<div class="exdef"><div class="row between"><span>${p.icon} <b>${esc(ex.name)}</b></span><button class="btn sm ghost" data-exdel="${i}" aria-label="Tracking entfernen">✕</button></div>
+      <div class="exinline">${exCard(t,ex)}</div>${exHistory(ex)}</div>`}).join('');
   const pick=trackPick&&trackPick.taskId===t.id?trackPick:null;
   const preset=pick&&TRACK_PRESETS.find(x=>x.key===pick.key);
   return `<div class="sec"><span class="label">Fortschritt</span>${list}
     ${!pick?`<button class="btn sm" id="trkOpen" style="justify-self:start">＋ Fortschritt tracken</button>`
-    :!preset?`<div class="trkpick">${TRACK_PRESETS.map(p=>`<button class="trkopt" data-trk="${p.key}"><span>${p.icon}</span><span><b>${p.label}</b><span class="meta">${p.hint}</span></span></button>`).join('')}<button class="btn sm ghost" id="trkCancel" style="justify-self:start">Abbrechen</button></div>`
+    :!preset?`<div class="trkpick">${TRACK_PRESETS.map(p=>`<button class="trkopt" data-trk="${p.key}"><span>${p.icon}</span><span><b>${p.label}</b></span></button>`).join('')}<button class="btn sm ghost" id="trkCancel" style="justify-self:start">Abbrechen</button></div>`
     :`<div class="trkform"><span class="meta">${preset.icon} ${preset.label}</span>
-      <input class="field" id="trkName" placeholder="${esc(preset.hint)}" value="${preset.key==='reps'||preset.key==='hold'?'':''}" autocomplete="off" aria-label="Name">
+      <input class="field" id="trkName" placeholder="${esc(preset.hint)}" autocomplete="off" aria-label="Name">
       ${preset.key==='custom'?`<input class="field" id="trkUnit" placeholder="Einheit, z. B. km, Wörter, Minuten" autocomplete="off" aria-label="Einheit">`:''}
       <div class="row"><button class="btn ghost" id="trkCancel">Abbrechen</button><button class="btn accent" id="trkSave">Hinzufügen</button></div></div>`}
   </div>`;
@@ -830,14 +839,19 @@ function trackSection(t){
 function bindTrackSection(t,r){
   const reopen=()=>openTask(t.id);
   const syncRule=()=>{if(r)r.exercises=(t.exercises||[]).map(x=>({...x}))};
+  const uniq=n=>{let name=n,i=2;while((t.exercises||[]).some(x=>exKey(x.name)===exKey(name)))name=`${n} ${i++}`;return name};
+  const addTracker=(p,name,unit)=>{t.exercises=(t.exercises||[]).concat({name:uniq(name),type:p.type,unit});syncRule();trackPick=null;persist();reopen()};
   const o=$('#trkOpen');if(o)o.onclick=()=>{trackPick={taskId:t.id,key:null};reopen()};
   const c=$('#trkCancel');if(c)c.onclick=()=>{trackPick=null;reopen()};
-  document.querySelectorAll('[data-trk]').forEach(b=>b.onclick=()=>{trackPick={taskId:t.id,key:b.dataset.trk};reopen();setTimeout(()=>$('#trkName')?.focus(),0)});
-  const sv=$('#trkSave');if(sv){const go=()=>{const p=TRACK_PRESETS.find(x=>x.key===trackPick.key);const n=$('#trkName').value.trim();if(!n){$('#trkName').focus();return}
-      const unit=p.key==='custom'?($('#trkUnit').value.trim()||'Stück'):p.unit;
-      t.exercises=(t.exercises||[]).filter(x=>exKey(x.name)!==exKey(n)).concat({name:n,type:p.type,unit});syncRule();trackPick=null;persist();reopen()};
-    sv.onclick=go;$('#trkName').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}}}
+  document.querySelectorAll('[data-trk]').forEach(b=>b.onclick=()=>{const p=TRACK_PRESETS.find(x=>x.key===b.dataset.trk);
+    if(p.key==='pages'||p.key==='bars'){addTracker(p,p.name,p.unit);return}
+    trackPick={taskId:t.id,key:p.key};reopen();setTimeout(()=>$('#trkName')?.focus(),0)});
+  const sv=$('#trkSave');if(sv){const go=()=>{const p=TRACK_PRESETS.find(x=>x.key===trackPick.key);let n=$('#trkName').value.trim();
+      if(p.key==='custom'){const u=$('#trkUnit').value.trim();if(!n&&!u){$('#trkName').focus();return}addTracker(p,n||u,u||'Stück');return}
+      addTracker(p,n||p.name,p.unit)};
+    sv.onclick=go;['#trkName','#trkUnit'].forEach(s=>{const el=$(s);if(el)el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}}})}
   document.querySelectorAll('[data-exdel]').forEach(b=>b.onclick=()=>{t.exercises.splice(+b.dataset.exdel,1);syncRule();persist();reopen()});
+  document.querySelectorAll('.sheet .exinline').forEach(w=>bindExercises(t,w,reopen));
 }
 function vFokus(){
   const t=currentFocus();
@@ -1074,6 +1088,12 @@ function closeSheet(){sheetId=null;$('#sheet').innerHTML=''}
 function flashSaved(){const el=$('#shSaved');if(!el)return;el.textContent='Gespeichert';el.classList.add('flash');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('flash'),900)}
 function persist(){save();render();flashSaved()}
 function editTask(id){closeModal();openTask(id)}
+// Kurzes Datum für Chips: Heute, Gestern, sonst „Fr 21.11.“
+function dayLabel(dk){if(!dk)return 'Datum';const k=today();if(dk===k)return 'Heute';if(dk===addDays(k,-1))return 'Gestern';if(dk===addDays(k,1))return 'Morgen';
+  return keyToDate(dk).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'numeric'})}
+const fmtMin=m=>m<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+String(m%60).padStart(2,'0'):'');
+function durOptions(cur){const set=new Set();for(let m=5;m<=180;m+=5)set.add(m);[210,240,270,300,360,420,480].forEach(m=>set.add(m));if(cur>0)set.add(cur);
+  return [...set].sort((a,b)=>a-b).map(m=>`<option value="${m}" ${m===cur?'selected':''}>${fmtMin(m)}</option>`).join('')}
 function openTask(id){
   const t=task(id);if(!t)return;sheetId=id;
   const r=t.recurId&&S.recurring.find(x=>x.id===t.recurId);
@@ -1120,8 +1140,8 @@ function openTask(id){
   const own=S.sessions.filter(s=>s.t===t.id).sort((a,b)=>a.s-b.s);
   const untracked=Math.max(0,(t.seconds||0)-own.reduce((a,s)=>a+(s.e-s.s)/1000,0));
   const box=$('#shSes');
-  const rowHtml=(sid,dk,a,b)=>`<div class="sesrow" data-sid="${sid}"><input class="field" type="date" value="${dk}" aria-label="Datum"><input class="field" type="time" value="${a}" aria-label="Beginn"><span class="muted">–</span><input class="field" type="time" value="${b}" aria-label="Ende"><span class="meta dur"></span><button type="button" class="btn sm ghost" data-rm aria-label="Sitzung löschen">✕</button></div>`;
-  const rowVal=row=>{const i=row.querySelectorAll('input');const d=i[0].value,a=i[1].value,b=i[2].value;let s=toMs(d,a),e=toMs(d,b);if(e<=s)e+=DAY;return {s,e,ok:!!(d&&a&&b)}};
+  const rowHtml=(sid,dk,a,mins)=>`<div class="sesrow" data-sid="${sid}"><label class="datechip" title="Datum ändern"><span>${dayLabel(dk)}</span><input type="date" value="${dk}" aria-label="Datum"></label><input class="field" type="time" step="300" value="${a}" aria-label="Beginn"><select class="field" aria-label="Dauer">${durOptions(mins)}</select><span class="dur" hidden></span><button type="button" class="btn sm ghost" data-rm aria-label="Sitzung löschen">✕</button></div>`;
+  const rowVal=row=>{const d=row.querySelector('input[type=date]').value,a=row.querySelector('input[type=time]').value,m=+row.querySelector('select').value;const s=toMs(d,a);return {s,e:s+m*60000,ok:!!(d&&a&&m>0)}};
   const recalc=()=>{t.seconds=untracked+S.sessions.filter(s=>s.t===t.id).reduce((a,s)=>a+(s.e-s.s)/1000,0)};
   const refresh=()=>{let tot=untracked;box.querySelectorAll('.sesrow').forEach(row=>{const v=rowVal(row);const sec=v.ok?(v.e-v.s)/1000:0;tot+=sec;row.querySelector('.dur').textContent=v.ok?fmtH(sec):''});
     $('#shSum').textContent=fmtH(tot+(run?(Date.now()-S.running.startedAt)/1000:0))+(untracked>=60?` · ${fmtH(untracked)} ohne Sitzung`:'')};
@@ -1129,12 +1149,12 @@ function openTask(id){
     let s=row.dataset.sid&&S.sessions.find(x=>x.id===row.dataset.sid);
     if(s){s.s=v.s;s.e=v.e}else{s={id:uid(),q:t.questId||null,t:t.id,s:v.s,e:v.e};S.sessions.push(s);row.dataset.sid=s.id}
     recalc();persist()};
-  const wire=row=>{row.querySelectorAll('input').forEach(i=>{i.oninput=refresh;i.onchange=()=>commitRow(row)});
+  const wire=row=>{row.querySelectorAll('input,select').forEach(i=>{i.oninput=refresh;i.onchange=()=>{if(i.type==='date')i.previousElementSibling.textContent=dayLabel(i.value);commitRow(row)}});
     row.querySelector('[data-rm]').onclick=()=>{const sid=row.dataset.sid;row.remove();if(sid){S.sessions=S.sessions.filter(x=>x.id!==sid);recalc();persist()}refresh()}};
-  box.innerHTML=own.map(s=>rowHtml(s.id,dayKey(s.s),fmtTime(s.s),fmtTime(s.e))).join('');
+  box.innerHTML=own.map(s=>rowHtml(s.id,dayKey(s.s),fmtTime(s.s),Math.max(1,Math.round((s.e-s.s)/60000)))).join('');
   box.querySelectorAll('.sesrow').forEach(wire);
-  $('#shAdd').onclick=()=>{const n=new Date();const a=String(Math.max(0,n.getHours()-1)).padStart(2,'0')+':00',b=String(n.getHours()).padStart(2,'0')+':00';
-    box.insertAdjacentHTML('beforeend',rowHtml('',t.day&&t.day<=today()?t.day:today(),a,b));const row=box.lastElementChild;wire(row);commitRow(row);refresh()};
+  $('#shAdd').onclick=()=>{const a=fmtTime(Math.max(keyToDate(today()).getTime(),Math.floor((Date.now()-30*60000)/300000)*300000));
+    box.insertAdjacentHTML('beforeend',rowHtml('',t.day&&t.day<=today()?t.day:today(),a,30));const row=box.lastElementChild;wire(row);commitRow(row);refresh()};
   refresh();
 }
 // Kleines Markdown: # Überschrift, - Liste, 1. Liste, - [ ] Checkliste, **fett**, *kursiv*, `code`, ---

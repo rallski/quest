@@ -313,6 +313,13 @@ textarea.field{resize:vertical;line-height:1.5}
 .exin{width:80px;flex:0 0 auto}
 .holdclock{font-family:var(--mono);font-size:20px;color:var(--accent);font-variant-numeric:tabular-nums}
 .exdef{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:grid;gap:4px}
+.trkpick{display:grid;gap:4px}
+.trkopt{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line-2);background:var(--bg);border-radius:9px;padding:8px 10px;cursor:pointer;font-size:13px}
+.trkopt:hover{border-color:var(--accent)}
+.trkopt>span:first-child{font-size:18px;width:24px;text-align:center}
+.trkopt>span:last-child{display:grid}
+.trkform{display:grid;gap:8px;border:1px solid var(--line-2);border-radius:9px;padding:10px}
+.trkform .row{justify-content:flex-end}
 .exh{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:8px;font-size:12.5px;align-items:baseline}
 
 /* Plan endlos */
@@ -741,34 +748,54 @@ function currentFocus(){
   if(!t)t=queue()[0];
   return t||null;
 }
-// ================= Übungen: Sätze × Wiederholungen oder Halten in Sekunden =================
-// Einträge liegen in S.logs: {id,name,type,taskId,questId,day,at,vals:[...]}; Verlauf wird über den Übungsnamen zusammengeführt.
+// ================= Fortschritt tracken: Sätze × Wdh., Halten, Zählwerte (Seiten, Takte …) =================
+// Einträge liegen in S.logs: {id,name,type,unit,taskId,questId,day,at,vals:[...]}; Verlauf wird über den Namen zusammengeführt.
+// Sichtbar nur bei Quests mit quest.tracking === true.
+const TRACK_PRESETS=[
+  {key:'reps',icon:'🤸',label:'Sätze × Wiederholungen',hint:'z. B. Handstand-Liegestütze',type:'reps',unit:'Wdh.',name:''},
+  {key:'hold',icon:'⏱',label:'Halten in Sekunden',hint:'z. B. Handstand an der Wand',type:'hold',unit:'s',name:''},
+  {key:'pages',icon:'📖',label:'Seiten gelesen',hint:'Name des Buchs',type:'count',unit:'Seiten',name:''},
+  {key:'bars',icon:'🎹',label:'Takte gelernt',hint:'Name des Stücks',type:'count',unit:'Takte',name:''},
+  {key:'custom',icon:'✏️',label:'Eigene Zahl',hint:'Was zählst du?',type:'count',unit:'',name:''}];
 const exKey=n=>(n||'').trim().toLowerCase();
-const exType=ex=>ex.type==='hold'?'hold':'reps';
-const exFmt=(type,v)=>type==='hold'?v+' s':String(v);
+const exType=ex=>ex.type==='hold'||ex.type==='count'?ex.type:'reps';
+const exUnit=ex=>ex.unit||(exType(ex)==='hold'?'s':exType(ex)==='reps'?'Wdh.':'');
+const trackingOn=t=>!!(t&&t.questId&&quest(t.questId)?.tracking);
 function exLogs(name){return S.logs.filter(l=>exKey(l.name)===exKey(name)).sort((a,b)=>a.at-b.at)}
 function exTodayLog(t,ex,create){const d=today();let l=S.logs.find(x=>x.taskId===t.id&&exKey(x.name)===exKey(ex.name)&&x.day===d);
-  if(!l&&create){l={id:uid(),name:ex.name,type:exType(ex),taskId:t.id,questId:t.questId||null,day:d,at:Date.now(),vals:[]};S.logs.push(l)}return l}
-function exSummary(l){if(!l||!l.vals.length)return '';return l.type==='hold'?l.vals.map(v=>v+' s').join(' · '):l.vals.join(' · ')+` (${l.vals.reduce((a,b)=>a+b,0)} Wdh.)`}
-function exBest(name){const all=exLogs(name).flatMap(l=>l.vals);return all.length?Math.max(...all):0}
+  if(!l&&create){l={id:uid(),name:ex.name,type:exType(ex),unit:exUnit(ex),taskId:t.id,questId:t.questId||null,day:d,at:Date.now(),vals:[]};S.logs.push(l)}return l}
+const lsum=l=>l.vals.reduce((a,b)=>a+b,0);
+function exSummary(l){if(!l||!l.vals.length)return '';
+  if(l.type==='hold')return l.vals.map(v=>v+' s').join(' · ');
+  if(l.type==='count')return lsum(l)+' '+(l.unit||'');
+  return l.vals.join(' · ')+` (${lsum(l)} Wdh.)`}
+function exStats(ex){const ls=exLogs(ex.name).filter(l=>l.vals.length);const type=exType(ex);
+  if(!ls.length)return '';
+  if(type==='count')return `Insgesamt ${ls.reduce((a,l)=>a+lsum(l),0)} ${exUnit(ex)} · bester Tag ${Math.max(...ls.map(lsum))} ${exUnit(ex)}`;
+  const best=Math.max(...ls.flatMap(l=>l.vals));
+  return type==='hold'?`Bestwert ${best} s`:`Bestwert ${best} Wdh. in einem Satz`}
 function exTrainingSec(l){return S.sessions.filter(s=>s.t===l.taskId&&dayKey(s.s)===l.day).reduce((a,s)=>a+(s.e-s.s)/1000,0)+(S.running&&S.running.taskId===l.taskId&&l.day===today()?(Date.now()-S.running.startedAt)/1000:0)}
 let holdRun=null;
 function exAdd(t,ex,val){val=Math.round(+val);if(!(val>0))return;const l=exTodayLog(t,ex,true);l.vals.push(val);l.at=Date.now();save()}
 function exRemove(logId,i){const l=S.logs.find(x=>x.id===logId);if(!l)return;l.vals.splice(i,1);if(!l.vals.length)S.logs=S.logs.filter(x=>x!==l);save()}
 function exHistory(ex,n=6){
-  const ls=exLogs(ex.name).filter(l=>l.vals.length).slice(-n).reverse();const best=exBest(ex.name);
-  return ls.length?ls.map(l=>{const tr=exTrainingSec(l);return `<div class="exh"><span class="meta">${fmtDM(l.day)}</span><span>${esc(exSummary(l))}</span><span class="meta">${tr>=60?fmtH(tr):''}</span></div>`}).join('')+`<div class="meta">Bestwert: ${exFmt(exType(ex),best)}${exType(ex)==='reps'?' Wdh. in einem Satz':''}</div>`:'';
+  const ls=exLogs(ex.name).filter(l=>l.vals.length).slice(-n).reverse();
+  return ls.length?ls.map(l=>{const tr=exTrainingSec(l);return `<div class="exh"><span class="meta">${fmtDM(l.day)}</span><span>${esc(exSummary(l))}</span><span class="meta">${tr>=60?fmtH(tr):''}</span></div>`}).join('')+`<div class="meta">${esc(exStats(ex))}</div>`:'';
 }
 function exCard(t,ex){
-  const type=exType(ex);const l=exTodayLog(t,ex,false);const prev=exLogs(ex.name).filter(x=>x.day!==today()&&x.vals.length).pop();const best=exBest(ex.name);
-  const last=l&&l.vals.length?l.vals[l.vals.length-1]:prev?prev.vals[prev.vals.length-1]:(type==='hold'?30:5);
+  const type=exType(ex),unit=exUnit(ex);const l=exTodayLog(t,ex,false);const prev=exLogs(ex.name).filter(x=>x.day!==today()&&x.vals.length).pop();
+  const last=l&&l.vals.length?l.vals[l.vals.length-1]:prev?prev.vals[prev.vals.length-1]:(type==='hold'?30:type==='reps'?5:10);
   const running=holdRun&&holdRun.taskId===t.id&&exKey(holdRun.name)===exKey(ex.name);
+  const chip=(v,i)=>`<button class="exset" data-exrm="${l.id}:${i}" title="Eintrag entfernen">${type==='reps'?'Satz '+(i+1)+': ':''}<b>${v}${type==='hold'?' s':type==='count'?' '+esc(unit):''}</b> ✕</button>`;
+  const empty=type==='hold'?'Heute noch nicht gehalten':type==='reps'?'Heute noch kein Satz':`Heute noch nichts eingetragen`;
+  const stats=exStats(ex);
   return `<div class="excard" data-exname="${esc(ex.name)}">
-    <div class="row between"><b>${esc(ex.name)}</b><span class="meta">${prev?'Letztes Mal: '+esc(exSummary(prev)):'Noch kein Eintrag'}${best?' · Bestwert '+exFmt(type,best):''}</span></div>
-    <div class="exsets">${(l?l.vals:[]).map((v,i)=>`<button class="exset" data-exrm="${l.id}:${i}" title="Eintrag entfernen">${type==='hold'?'':'Satz '+(i+1)+': '}<b>${exFmt(type,v)}</b> ✕</button>`).join('')||`<span class="meta">${type==='hold'?'Heute noch nicht gehalten':'Heute noch kein Satz'}</span>`}</div>
+    <div class="row between"><b>${esc(ex.name)}</b><span class="meta">${prev?'Letztes Mal: '+esc(exSummary(prev)):'Noch kein Eintrag'}${stats?' · '+esc(stats):''}</span></div>
+    <div class="exsets">${(l?l.vals:[]).map(chip).join('')||`<span class="meta">${empty}</span>`}${type==='count'&&l&&l.vals.length>1?`<span class="meta">= ${lsum(l)} ${esc(unit)} heute</span>`:''}</div>
     <div class="row">${type==='hold'
       ?`<button class="btn ${running?'':'accent'}" data-exhold>${running?'■ Stopp':'▶ Halten starten'}</button><span class="holdclock" ${running?'data-holdlive':''}>${running?fmtClock((Date.now()-holdRun.start)/1000):''}</span><span class="meta">oder</span><input class="field exin" type="number" min="1" value="${last}" aria-label="Sekunden"><button class="btn" data-exadd>+ Sekunden</button>`
-      :`<input class="field exin" type="number" min="1" value="${last}" aria-label="Wiederholungen"><button class="btn accent" data-exadd>+ Satz</button>`}</div>
+      :type==='reps'?`<input class="field exin" type="number" min="1" value="${last}" aria-label="Wiederholungen"><button class="btn accent" data-exadd>+ Satz</button>`
+      :`<input class="field exin" type="number" min="1" value="${last}" aria-label="${esc(unit)}"><button class="btn accent" data-exadd>+ ${esc(unit||'eintragen')}</button>`}</div>
   </div>`;
 }
 function bindExercises(t,root,rerender){
@@ -782,6 +809,35 @@ function bindExercises(t,root,rerender){
       rerender()});
     card.querySelectorAll('[data-exrm]').forEach(b=>b.addEventListener('click',()=>{const [id,i]=b.dataset.exrm.split(':');exRemove(id,+i);rerender()}));
   });
+}
+// Abschnitt im Aufgaben-Panel: nur bei Quests mit Tracking; Auswahl erst nach Klick
+let trackPick=null;
+function trackSection(t){
+  if(!trackingOn(t)&&!(t.exercises||[]).length)return '';
+  const list=(t.exercises||[]).map((ex,i)=>{const p=TRACK_PRESETS.find(x=>x.type===exType(ex)&&(x.type!=='count'||x.unit===exUnit(ex)))||TRACK_PRESETS[4];
+    return `<div class="exdef"><div class="row between"><span>${p.icon} <b>${esc(ex.name)}</b> <span class="meta">${exType(ex)==='count'?esc(exUnit(ex)):esc(p.label)}</span></span><button class="btn sm ghost" data-exdel="${i}" aria-label="Tracking entfernen">✕</button></div>${exHistory(ex)||'<div class="meta">Noch keine Einträge. Eintragen geht im Fokus.</div>'}</div>`}).join('');
+  const pick=trackPick&&trackPick.taskId===t.id?trackPick:null;
+  const preset=pick&&TRACK_PRESETS.find(x=>x.key===pick.key);
+  return `<div class="sec"><span class="label">Fortschritt</span>${list}
+    ${!pick?`<button class="btn sm" id="trkOpen" style="justify-self:start">＋ Fortschritt tracken</button>`
+    :!preset?`<div class="trkpick">${TRACK_PRESETS.map(p=>`<button class="trkopt" data-trk="${p.key}"><span>${p.icon}</span><span><b>${p.label}</b><span class="meta">${p.hint}</span></span></button>`).join('')}<button class="btn sm ghost" id="trkCancel" style="justify-self:start">Abbrechen</button></div>`
+    :`<div class="trkform"><span class="meta">${preset.icon} ${preset.label}</span>
+      <input class="field" id="trkName" placeholder="${esc(preset.hint)}" value="${preset.key==='reps'||preset.key==='hold'?'':''}" autocomplete="off" aria-label="Name">
+      ${preset.key==='custom'?`<input class="field" id="trkUnit" placeholder="Einheit, z. B. km, Wörter, Minuten" autocomplete="off" aria-label="Einheit">`:''}
+      <div class="row"><button class="btn ghost" id="trkCancel">Abbrechen</button><button class="btn accent" id="trkSave">Hinzufügen</button></div></div>`}
+  </div>`;
+}
+function bindTrackSection(t,r){
+  const reopen=()=>openTask(t.id);
+  const syncRule=()=>{if(r)r.exercises=(t.exercises||[]).map(x=>({...x}))};
+  const o=$('#trkOpen');if(o)o.onclick=()=>{trackPick={taskId:t.id,key:null};reopen()};
+  const c=$('#trkCancel');if(c)c.onclick=()=>{trackPick=null;reopen()};
+  document.querySelectorAll('[data-trk]').forEach(b=>b.onclick=()=>{trackPick={taskId:t.id,key:b.dataset.trk};reopen();setTimeout(()=>$('#trkName')?.focus(),0)});
+  const sv=$('#trkSave');if(sv){const go=()=>{const p=TRACK_PRESETS.find(x=>x.key===trackPick.key);const n=$('#trkName').value.trim();if(!n){$('#trkName').focus();return}
+      const unit=p.key==='custom'?($('#trkUnit').value.trim()||'Stück'):p.unit;
+      t.exercises=(t.exercises||[]).filter(x=>exKey(x.name)!==exKey(n)).concat({name:n,type:p.type,unit});syncRule();trackPick=null;persist();reopen()};
+    sv.onclick=go;$('#trkName').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}}}
+  document.querySelectorAll('[data-exdel]').forEach(b=>b.onclick=()=>{t.exercises.splice(+b.dataset.exdel,1);syncRule();persist();reopen()});
 }
 function vFokus(){
   const t=currentFocus();
@@ -1036,10 +1092,7 @@ function openTask(id){
       <div class="sec"><span class="label">Quest</span>
         <div>${[{id:'',title:'Andere (keine Quest)',color:'var(--other)'},...activeQuests()].map(q=>`<button class="qopt ${(t.questId||'')===q.id?'on':''}" data-shq="${q.id}"><span class="dot" style="--qc:${q.color}"></span>${q.icon?esc(q.icon)+' ':''}${esc(q.title)}<span class="ok">✓</span></button>`).join('')}</div></div>
       <div class="sec"><span class="label">Notizen</span><textarea class="field" id="shNotes" rows="3" placeholder="Details, Links, nächste Schritte …">${esc(t.notes||'')}</textarea></div>
-      <div class="sec"><span class="label">Übungen</span>
-        ${(t.exercises||[]).map((ex,i)=>`<div class="exdef"><div class="row between"><span><b>${esc(ex.name)}</b> <span class="meta">${exType(ex)==='hold'?'Halten in Sekunden':'Sätze × Wiederholungen'}</span></span><button class="btn sm ghost" data-exdel="${i}" aria-label="Übung entfernen">✕</button></div>${exHistory(ex)||'<div class="meta">Noch keine Einträge. Eintragen geht im Fokus.</div>'}</div>`).join('')}
-        <div class="addline" style="margin-top:0"><input class="field" id="shExN" placeholder="Übung hinzufügen, z. B. Handstand-Liegestütze" autocomplete="off"><select class="field" id="shExT" aria-label="Art der Übung" style="flex:0 0 auto;width:auto;max-width:none"><option value="reps">Sätze × Wdh.</option><option value="hold">Halten (Sek.)</option></select><button class="btn" id="shExAdd" aria-label="Übung hinzufügen">+</button></div>
-      </div>
+      ${trackSection(t)}
       <div class="sec"><div class="row between"><span class="label">Erfasste Zeit</span><span class="meta" id="shSum"></span></div>
         <div id="shSes" style="display:grid;gap:6px"></div>
         ${run?`<div class="meta">Der Timer läuft gerade. Diese Sitzung erscheint hier, sobald du ihn stoppst.</div>`:''}
@@ -1060,11 +1113,7 @@ function openTask(id){
   $('#shRepeat').onclick=()=>openRepeat(r||null,t);
   document.querySelectorAll('[data-shq]').forEach(b=>b.onclick=()=>{const nq=b.dataset.shq||null;t.questId=nq;S.sessions.forEach(s=>{if(s.t===t.id)s.q=nq});if(r)r.questId=nq;persist();openTask(id)});
   $('#shNotes').oninput=e=>{clearTimeout(sheetTimer);sheetTimer=setTimeout(()=>{t.notes=e.target.value;save();flashSaved()},400)};
-  // Übungen pflegen; bei wiederkehrenden Aufgaben auch in der Regel, damit künftige Tage sie mitbekommen
-  const syncRule=()=>{if(r)r.exercises=(t.exercises||[]).map(x=>({...x}))};
-  const addEx=()=>{const n=$('#shExN').value.trim();if(!n)return;t.exercises=(t.exercises||[]).filter(x=>exKey(x.name)!==exKey(n)).concat({name:n,type:$('#shExT').value});syncRule();persist();openTask(id);setTimeout(()=>$('#shExN')?.focus(),0)};
-  $('#shExAdd').onclick=addEx;$('#shExN').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addEx()}};
-  document.querySelectorAll('[data-exdel]').forEach(b=>b.onclick=()=>{t.exercises.splice(+b.dataset.exdel,1);syncRule();persist();openTask(id)});
+  bindTrackSection(t,r);
   $('#shDel').onclick=()=>{closeSheet();delTask(id)};
   const sf=$('#shFocus');if(sf)sf.onclick=()=>{closeSheet();focusTask(id)};
   // Sitzungen: jede Zeile speichert für sich, sobald sie gültig ist
@@ -1115,6 +1164,7 @@ function editQuest(id,mode){
     <div class="side">
       <div class="sec"><span class="label">Farbe</span><div class="swatches">${SWATCHES.map(c=>`<button type="button" data-col="${c}" class="${c===q.color?'on':''}" style="background:${c}" aria-label="Farbe ${c}"></button>`).join('')}<label title="Eigene Farbe">＋<input type="color" id="eqCol" value="${/^#[0-9a-f]{6}$/i.test(q.color)?q.color:'#a78bfa'}" aria-label="Eigene Farbe"></label></div></div>
       <label class="meta" style="display:grid;gap:4px">Wochenziel in Stunden<input class="field" id="eqTg" type="number" min="0" step="0.5" value="${q.target||''}" placeholder="optional"></label>
+      <label class="row" style="gap:8px;font-size:13px;color:var(--fg);display:flex;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="eqTrk" ${q.tracking?'checked':''} style="margin-top:3px"><span>Fortschritt tracken<br><span class="meta">Sätze, Halten, Seiten, Takte bei Aufgaben dieser Quest</span></span></label>
       <button class="btn" id="eqA">${q.archived?'↺ Wieder aktivieren':'✓ Quest abschließen'}</button>
       <button class="btn ghost danger" id="eqD" style="justify-self:start">Löschen</button>
       <div class="meta" id="eqW"></div>
@@ -1125,6 +1175,7 @@ function editQuest(id,mode){
   $('#eqT').oninput=e=>later(()=>{const v=e.target.value.trim();if(v)q.title=v});
   $('#eqDesc').oninput=e=>later(()=>{q.desc=e.target.value.trim()});
   $('#eqTg').oninput=e=>later(()=>{q.target=Math.max(0,+e.target.value||0)});
+  $('#eqTrk').onchange=e=>{q.tracking=e.target.checked;save();render();saved()};
   $('#eqIc').onclick=()=>{$('#eqIcons').hidden=!$('#eqIcons').hidden};
   document.querySelectorAll('[data-icon]').forEach(b=>b.onclick=()=>{q.icon=b.dataset.icon;save();render();editQuest(id,mode)});
   const setCol=c=>{q.color=c;S.tasks;save();render();editQuest(id,mode)};

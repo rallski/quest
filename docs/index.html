@@ -319,6 +319,9 @@ textarea.field{resize:vertical;line-height:1.5}
 .exinline .excard{border:0;padding:0;background:none;gap:8px}
 .exinline .excard>.row.between>b{display:none}
 .excard .exsetsn{width:60px}
+.excard.closed{padding:8px 12px}
+.exdone{flex:1;color:var(--good);font-weight:500;font-size:13.5px}
+.exinline .excard.closed{padding:0}
 .trkpick{display:grid;gap:4px}
 .trkopt{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line-2);background:var(--bg);border-radius:9px;padding:8px 10px;cursor:pointer;font-size:13px}
 .trkopt:hover{border-color:var(--accent)}
@@ -790,35 +793,40 @@ let holdRun=null;
 function exAdd(t,ex,val){val=Math.round(+val);if(!(val>0))return;const l=exTodayLog(t,ex,true);l.vals.push(val);l.at=Date.now();save()}
 function exRemove(logId,i){const l=S.logs.find(x=>x.id===logId);if(!l)return;l.vals.splice(i,1);if(!l.vals.length)S.logs=S.logs.filter(x=>x!==l);save()}
 function exHistory(t,ex,n=6){
-  const ls=exLogs(t,ex).filter(l=>l.vals.length).slice(-n).reverse();
+  const ls=exLogs(t,ex).filter(l=>l.vals.length&&l.day!==today()).slice(-n).reverse();
   return ls.length?ls.map(l=>{const tr=exTrainingSec(l);return `<div class="exh"><span class="meta">${fmtDM(l.day)}</span><span>${esc(exSummary(l))}</span><span class="meta">${tr>=60?fmtH(tr):''}</span></div>`}).join('')+`<div class="meta">${esc(exStats(t,ex))}</div>`:'';
 }
+// Karte zum Eintragen: nach dem Eintragen zugeklappt, dann steht nur die Zusammenfassung von heute da.
+const exOpen=new Set();
+function exToday(l){if(!l||!l.vals.length)return '';
+  if(l.type==='hold')return l.vals.map(v=>v+' s').join(', ')+' gehalten';
+  if(l.type==='count')return lsum(l)+' '+(l.unit||'');
+  const g=[];l.vals.forEach(v=>{const x=g[g.length-1];if(x&&x[1]===v)x[0]++;else g.push([1,v])});
+  return g.map(([n,v])=>`${n} ${n===1?'Satz':'Sätze'} × ${v} Wdh.`).join(' + ')}
 function exCard(t,ex){
   const type=exType(ex),unit=exUnit(ex);const l=exTodayLog(t,ex,false);const prev=exLogs(t,ex).filter(x=>x.day!==today()&&x.vals.length).pop();
-  const last=l&&l.vals.length?l.vals[l.vals.length-1]:prev?prev.vals[prev.vals.length-1]:(type==='hold'?30:type==='reps'?5:10);
-  const running=holdRun&&holdRun.taskId===t.id&&holdRun.exId===ex.id;
+  const key=t.id+':'+ex.id;const has=!!(l&&l.vals.length);
+  const head=`<b>${exPreset(ex).icon} ${esc(exLabel(ex))}</b>`;
+  if(has&&!exOpen.has(key))return `<div class="excard closed" data-exid="${ex.id}"><div class="row between">${head}<span class="exdone">✓ ${esc(exToday(l))}</span><button class="btn sm ghost" data-exopen>Ändern</button></div></div>`;
+  const last=has?l.vals[l.vals.length-1]:prev?prev.vals[prev.vals.length-1]:(type==='hold'?30:type==='reps'?5:10);
   const chip=(v,i)=>`<button class="exset" data-exrm="${l.id}:${i}" title="Eintrag entfernen">${type==='reps'?'Satz '+(i+1)+': ':''}<b>${v}${type==='hold'?' s':type==='count'?' '+esc(unit):''}</b> ✕</button>`;
-  const empty=type==='hold'?'Heute noch nicht gehalten':type==='reps'?'Heute noch kein Satz':'Heute noch nichts eingetragen';
-  const stats=exStats(t,ex);
   return `<div class="excard" data-exid="${ex.id}">
-    <div class="row between"><b>${exPreset(ex).icon} ${esc(exLabel(ex))}</b><span class="meta">${prev?'Letztes Mal: '+esc(exSummary(prev)):'Noch kein Eintrag'}${stats?' · '+esc(stats):''}</span></div>
-    <div class="exsets">${(l?l.vals:[]).map(chip).join('')||`<span class="meta">${empty}</span>`}${type==='count'&&l&&l.vals.length>1?`<span class="meta">= ${lsum(l)} ${esc(unit)} heute</span>`:''}</div>
-    <div class="row">${type==='hold'
-      ?`<button class="btn ${running?'':'accent'}" data-exhold>${running?'■ Stopp':'▶ Halten starten'}</button><span class="holdclock" ${running?'data-holdlive':''}>${running?fmtClock((Date.now()-holdRun.start)/1000):''}</span><span class="meta">oder</span><input class="field exin" type="number" min="1" value="${last}" aria-label="Sekunden"><button class="btn" data-exadd>+ Sekunden</button>`
-      :type==='reps'?`<input class="field exin exsetsn" type="number" min="1" max="50" value="${prev&&!(l&&l.vals.length)?prev.vals.length:1}" aria-label="Sätze"><span class="muted">Sätze ×</span><input class="field exin exreps" type="number" min="1" value="${last}" aria-label="Wiederholungen"><span class="muted">Wdh.</span><button class="btn accent" data-exadd>Eintragen</button>`
-      :`<input class="field exin" type="number" min="1" value="${last}" aria-label="${esc(unit)}"><button class="btn accent" data-exadd>+ ${esc(unit||'eintragen')}</button>`}</div>
+    <div class="row between">${head}<span class="meta">${prev?'Letztes Mal: '+esc(exToday(prev)):''}</span></div>
+    ${has?`<div class="exsets">${l.vals.map(chip).join('')}</div>`:''}
+    <div class="row">${type==='reps'
+      ?`<input class="field exin exsetsn" type="number" min="1" max="50" value="${prev&&!has?prev.vals.length:1}" aria-label="Sätze"><span class="muted">Sätze ×</span><input class="field exin exreps" type="number" min="1" value="${last}" aria-label="Wiederholungen"><span class="muted">Wdh.</span>`
+      :`<input class="field exin" type="number" min="1" value="${last}" aria-label="${type==='hold'?'Sekunden':esc(unit)}"><span class="muted">${type==='hold'?'Sekunden':esc(unit)}</span>`}
+      <button class="btn accent" data-exadd>Eintragen</button>${has?`<button class="btn ghost" data-exclose>Fertig</button>`:''}</div>
   </div>`;
 }
 function bindExercises(t,root,rerender){
-  root.querySelectorAll('.excard').forEach(card=>{const ex=(t.exercises||[]).find(x=>x.id===card.dataset.exid);if(!ex)return;
+  root.querySelectorAll('.excard').forEach(card=>{const ex=(t.exercises||[]).find(x=>x.id===card.dataset.exid);if(!ex)return;const key=t.id+':'+ex.id;
+    card.querySelector('[data-exopen]')?.addEventListener('click',()=>{exOpen.add(key);rerender()});
+    card.querySelector('[data-exclose]')?.addEventListener('click',()=>{exOpen.delete(key);rerender()});
     const inp=card.querySelector('.exreps')||card.querySelector('.exin');const setsIn=card.querySelector('.exsetsn');
-    const add=()=>{const n=setsIn?Math.max(1,Math.min(50,Math.round(+setsIn.value)||1)):1;for(let i=0;i<n;i++)exAdd(t,ex,inp.value);rerender()};
+    const add=()=>{if(!inp)return;const n=setsIn?Math.max(1,Math.min(50,Math.round(+setsIn.value)||1)):1;for(let i=0;i<n;i++)exAdd(t,ex,inp.value);exOpen.delete(key);rerender()};
     card.querySelector('[data-exadd]')?.addEventListener('click',add);
     card.querySelectorAll('.exin').forEach(x=>x.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}}));
-    card.querySelector('[data-exhold]')?.addEventListener('click',()=>{
-      if(holdRun&&holdRun.taskId===t.id&&holdRun.exId===ex.id){const s=Math.round((Date.now()-holdRun.start)/1000);holdRun=null;exAdd(t,ex,s);toast(`${s} s gehalten`)}
-      else holdRun={taskId:t.id,exId:ex.id,start:Date.now()};
-      rerender()});
     card.querySelectorAll('[data-exrm]').forEach(b=>b.addEventListener('click',()=>{const [id,i]=b.dataset.exrm.split(':');exRemove(id,+i);rerender()}));
   });
 }
@@ -1096,7 +1104,7 @@ const fmtMin=m=>m<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+String(m%60).padSt
 function durOptions(cur){const set=new Set();for(let m=5;m<=180;m+=5)set.add(m);[210,240,270,300,360,420,480].forEach(m=>set.add(m));if(cur>0)set.add(cur);
   return [...set].sort((a,b)=>a-b).map(m=>`<option value="${m}" ${m===cur?'selected':''}>${fmtMin(m)}</option>`).join('')}
 function openTask(id){
-  const t=task(id);if(!t)return;sheetId=id;
+  const t=task(id);if(!t)return;const same=sheetId===id&&$('.sheet-body');const keep=same?$('.sheet-body').scrollTop:0;sheetId=id;
   const r=t.recurId&&S.recurring.find(x=>x.id===t.recurId);
   const run=S.running&&S.running.taskId===t.id;
   const k=today();
@@ -1123,6 +1131,7 @@ function openTask(id){
     </div>
     <div class="sheet-foot"><span class="row"><button class="btn sm ghost danger" id="shDel">Löschen</button>${t.doneAt?'':`<button class="btn sm" id="shFocus">${run?'Zum Timer':'Fokus starten'}</button>`}</span><span class="saved" id="shSaved">Speichert automatisch</span></div>
   </aside>`;
+  if(same){$('.sheet').style.animation='none';$('#shBack').style.animation='none';$('.sheet-body').scrollTop=keep}
   const ta=$('#shTitle');const fit=()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'};fit();
   $('#shBack').onclick=closeSheet;$('#shClose').onclick=closeSheet;
   $('#shCheck').onclick=()=>{if(t.doneAt){uncomplete(id)}else{if(S.running&&S.running.taskId===id)stopTimer();t.doneAt=Date.now();if(!t.day||t.day>today())t.day=today();save();render()}openTask(id);flashSaved()};

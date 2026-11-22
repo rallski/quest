@@ -186,8 +186,10 @@ textarea.field{resize:vertical;line-height:1.5}
 .qfig{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
 .spark{width:120px;height:36px;flex:0 0 auto}
 .qgrid>.qcard{display:flex;flex-direction:column;gap:12px}
-.qcard .qfig{margin-top:auto}
-.qdesc{margin:-4px 0 0;color:var(--muted);font-size:12.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:calc(3 * 1.45em)}
+.qcard .qfig{margin-top:auto;display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding-top:4px}
+.qnums{display:flex;justify-content:space-between;align-items:baseline;gap:8px;min-width:0}
+.qcard .spark{width:100%;height:40px;display:block;flex:none;justify-self:stretch}
+.qdesc{margin:-4px 0 0;color:var(--muted);font-size:12.5px;line-height:1.5;overflow-wrap:anywhere}
 .qnew{border:1px dashed var(--line-2);border-radius:12px;display:grid;place-items:center;padding:16px;min-height:150px}
 .ms{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:13px}
 .ms::before{content:'◆';color:var(--accent);font-size:9px}
@@ -753,7 +755,7 @@ function sparkline(vals,color){
   const pts=vals.map((v,i)=>[i*step,H-3-(v/max)*(H-8)]);
   const line=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
   const last=pts[pts.length-1];
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polygon points="0,${H} ${line} ${W},${H}" fill="${color}" opacity=".12"/><polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${last[0]-1.5}" cy="${last[1]}" r="2.6" fill="${color}"/></svg>`;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><polygon points="0,${H} ${line} ${W},${H}" fill="${color}" opacity=".12"/><polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><line x1="${last[0]}" y1="${last[1]}" x2="${last[0]}" y2="${last[1]}" stroke="${color}" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 function vQuests(){
   const ws=weekStart();const qs=activeQuests();const arch=S.quests.filter(q=>q.archived);
@@ -768,7 +770,11 @@ function vQuests(){
     return `<div class="card qcard" style="--qc:${q.color}" draggable="true" data-qid="${q.id}" tabindex="0" aria-label="Quest ${esc(q.title)}, mit Alt + Pfeiltasten verschieben">
       <div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2></div><button class="btn sm ghost" data-editq="${q.id}">Bearbeiten</button></div>
       ${q.desc?`<p class="qdesc" title="${esc(q.desc)}">${esc(q.desc)}</p>`:''}
-      <div class="qfig"><div><div class="big num">${fmtH(wk)}</div><div class="label" style="margin-top:4px;white-space:nowrap">diese Woche${tg?` · Ziel ${fmtDec(tg)}h`:''}</div></div><div style="text-align:right">${sparkline(series,q.color)}<div class="meta">${fmtH(all)} gesamt</div></div></div>
+      <div class="qfig">
+        <div class="qnums"><span class="big num">${fmtH(wk)}</span><span class="meta">${fmtH(all)} gesamt</span></div>
+        ${sparkline(series,q.color)}
+        <div class="qnums"><span class="label">diese Woche</span>${tg?`<span class="label">Ziel ${fmtDec(tg)}h</span>`:''}</div>
+      </div>
       ${tg?`<div class="prog"><i style="width:${Math.min(100,wk/tg*100)}%;background:${q.color}"></i></div>`:''}
       <button class="fold ${ex?'open':''}" data-qopen="${q.id}" style="min-width:0">${CHEV}<span class="qmeta">${open.length===1?'1 offene Aufgabe':open.length+' offene Aufgaben'} · ${ms.length===1?'1 Meilenstein':ms.length+' Meilensteine'}</span></button>
       ${ex?`<div style="display:grid;gap:12px">

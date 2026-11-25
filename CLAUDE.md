@@ -11,11 +11,12 @@ Der Nutzer spricht Deutsch, ist kein Entwickler und möchte eine schlichte, gut 
 - `artifact/quest.html` ist die alte Online-Version auf claude.ai (nicht weiterentwickeln).
 
 ## Datenmodell (state)
-quests (id, title, desc, target, color, icon, notes, tracking, archived), tasks (id, title, questId, day, order, seconds, doneAt, notes, recurId, exercises), sessions (id, q, t, s, e), recurring (Regeln mit freq/interval/days/pin/start/end/made/exercises), logs (Fortschritt: type reps|hold|count, unit, vals), milestones, reviews, settings (weeklyTarget, vision, theme).
+quests (id, title, desc, target, color, icon, notes, tracking, archived), tasks (id, title, questId, day, order, seconds, doneAt, notes, recurId, exercises), sessions (id, q, t, s, e), recurring (Regeln mit freq/interval/days/pin/start/end/made/exercises), logs (Fortschritt: type reps|hold|count, unit, vals), milestones, reviews, settings (weeklyTarget, vision, theme, music = Playlist-Link für Fokus-Musik).
 
 ## Arbeitsweise
 - Änderungen lokal testen: `python -m http.server 8766 --bind 127.0.0.1` im Projektordner, dann im Browser `http://127.0.0.1:8766/docs/index.html?v=N` (Query gegen Cache). Testdaten danach wieder entfernen.
 - Veröffentlichen: committen und `git push` (SSH-Schlüssel ist eingerichtet, `GIT_SSH_COMMAND='ssh -o BatchMode=yes'`). Nach 1–2 Minuten online.
 - Echte Nutzerdaten nur lesen; ändern nur auf ausdrücklichen Wunsch und dann `updated_at` und `state.updatedAt` hochsetzen.
-- Fortschritt-Tracking erscheint nur bei Quests mit `tracking: true` (aktuell „Hobby & Freizeit“).
+- Fortschritt-Tracking erscheint nur bei Quests mit `tracking: true`; Schalter „Fortschritt tracken“ im Dialog „Quest bearbeiten“ (aktuell an bei „Hobby & Freizeit“).
+- Fokus-Musik: eingebetteter YouTube-Player (IFrame-API) spielt `settings.music` ab, solange der Timer läuft; dazu Knopf „In YouTube Music öffnen“. An/aus und Ton in `ui` (localStorage).
 - UI-Wünsche des Nutzers bisher: keine unnötigen Eingaben (keine Namen, wo nicht nötig), Dinge nach dem Eintragen zuklappen, nichts darf beim Klicken nach oben springen, Timer nur im Fokus.

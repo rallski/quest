@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Quest">
 <script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js" integrity="sha384-rwykjmWNwVxboyFmvK9OXN0wj9hnMHA2aAHtits54DuACyCq0M2PrSNxhRb+hvXT" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -223,10 +223,6 @@ main.fit>.wrap>.wk{flex:1}
 .focus textarea{max-width:520px;margin-top:18px;background:transparent;min-height:84px}
 
 /* Quests */
-.vision{display:grid;gap:8px}
-.vision textarea{background:transparent;border-color:var(--line);font-size:15px}
-.chain{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
-.chain b{color:var(--fg);font-weight:500}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 .stats>div{padding:14px 16px;display:grid;gap:4px;min-width:0}
 .stats>div+div{border-left:1px solid var(--line)}
@@ -372,7 +368,6 @@ main.fit>.wrap>.wk{flex:1}
 .exset b{color:var(--fg);font-weight:500}
 .exset:hover{border-color:var(--danger)}
 .exin{width:80px;flex:0 0 auto}
-.holdclock{font-family:var(--mono);font-size:20px;color:var(--accent);font-variant-numeric:tabular-nums}
 .exdef{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:grid;gap:4px}
 .exinline .excard{border:0;padding:0;background:none;gap:8px}
 .exinline .excard>.row.between>b{display:none}
@@ -416,7 +411,6 @@ main.fit>.wrap>.wk{flex:1}
 .more{border:0;background:none;color:var(--muted);font-size:11.5px;cursor:pointer;text-align:left;padding:2px 4px}
 .more:hover{color:var(--fg)}
 .task.dragging,.pcard.dragging{opacity:.45;outline:1px dashed var(--accent)}
-.col.weekstart .col-head{box-shadow:inset 2px 0 0 var(--line-2)}
 
 /* Quests */
 .qicon.emoji{font-size:16px;line-height:1}
@@ -485,16 +479,23 @@ const LS='quest-app-v1', UIKEY='quest-ui-v1';
 const VIEWS={heute:'Heute',plan:'Plan',kalender:'Kalender',fokus:'Fokus',quests:'Quests',review:'Review'};
 const VKEYS={heute:'1',plan:'2',kalender:'3',fokus:'F',quests:'4',review:'5'};
 const WD=['Mo','Di','Mi','Do','Fr','Sa','So'];
-const APP_VERSION='1.01';  // bei jeder Änderung um 0.01 erhöhen (1.01, 1.02, …)
+const APP_VERSION='1.02';  // bei jeder Änderung um 0.01 erhöhen (1.01, 1.02, …)
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 const blankSettings=()=>({theme:'auto',weeklyTarget:20,vision:''});
 const blank=()=>({v:2,quests:[],tasks:[],milestones:[],sessions:[],recurring:[],logs:[],running:null,reviews:{},settings:blankSettings(),updatedAt:0});
 
+// IDs und Farben landen im HTML: nur harmlose Werte zulassen (schützt beim Importieren fremder Daten)
+const okId=v=>typeof v==='string'&&/^[\w-]{1,40}$/.test(v);
+const okColor=v=>typeof v==='string'&&/^#[0-9a-f]{3,8}$/i.test(v);
 function fix(n){
   n.settings=Object.assign(blankSettings(),n.settings||{});
   for(const k of ['quests','tasks','milestones','sessions','recurring','logs'])if(!Array.isArray(n[k]))n[k]=[];
   if(!n.reviews||typeof n.reviews!=='object')n.reviews={};
   n.sessions.forEach(s=>{if(!s.id)s.id=uid()});
+  for(const k of ['quests','tasks','milestones','sessions','recurring','logs'])n[k]=n[k].filter(x=>x&&typeof x==='object'&&okId(x.id));
+  n.quests.forEach((q,i)=>{if(!okColor(q.color))q.color=COLORS[i%COLORS.length]});
+  for(const x of [...n.tasks,...n.recurring,...n.milestones,...n.logs])for(const f of ['questId','recurId','taskId'])if(x[f]!=null&&!okId(x[f]))x[f]=null;
+  for(const x of n.sessions)for(const f of ['q','t'])if(x[f]!=null&&!okId(x[f]))x[f]=null;
   return n;
 }
 function migrate(o){
@@ -521,8 +522,8 @@ const saveUi=()=>{try{localStorage.setItem(UIKEY,JSON.stringify(ui))}catch(e){}}
 
 const hashView=()=>{const h=location.hash.slice(1);return h==='woche'?'plan':(VIEWS[h]?h:null)};
 let view=hashView()||'heute';
-let focusId=null, weekOffset=0, reviewOffset=0, calDay=null, hoverId=null;
-let planFrom=null, planTo=null, planScroll=null, planJump='today', planHold=false;
+let focusId=null, reviewOffset=0, calDay=null, hoverId=null;
+let planHold=false;
 const openQuests=new Set();
 
 // ================= Helfer =================
@@ -562,7 +563,6 @@ const weekRange=ws=>[keyToDate(ws).getTime(),keyToDate(addDays(ws,7)).getTime()]
 function byQuest(list){const m={};for(const s of list)if(s.q)m[s.q]=(m[s.q]||0)+s.sec;return m}
 const sum=list=>list.reduce((a,s)=>a+s.sec,0);
 const qsum=list=>list.reduce((a,s)=>a+(s.q?s.sec:0),0);
-const weekQuestSec=ws=>qsum(sessionsBetween(...weekRange(ws)));
 function dayTasks(k){return S.tasks.filter(t=>t.day===k).sort((a,b)=>(!!a.doneAt-!!b.doneAt)||(a.doneAt&&b.doneAt?a.doneAt-b.doneAt:a.order-b.order))}
 function openDay(k){return S.tasks.filter(t=>t.day===k&&!t.doneAt).sort((a,b)=>a.order-b.order)}
 const overdue=()=>S.tasks.filter(t=>!t.doneAt&&t.day&&t.day<today()).sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.order-b.order);
@@ -719,10 +719,8 @@ function vHeute(){
   const qOpen=open.filter(t=>t.questId&&(!ui.questFilter||t.questId===ui.questFilter));
   const od=overdue();
   const done=S.tasks.filter(t=>t.doneAt&&dayKey(t.doneAt)===k).sort((a,b)=>a.doneAt-b.doneAt);
-  const daySes=sessionsBetween(...dayRange(k));const m=byQuest(daySes);const qd=qsum(daySes);const other=sum(daySes)-qd;
-  const wq=weekQuestSec(weekStart());const tg=target();
+  const daySes=sessionsBetween(...dayRange(k));const qd=qsum(daySes);const other=sum(daySes)-qd;
   const h=new Date().getHours();const greet=h<11?'Guten Morgen':h<18?'Guten Tag':'Guten Abend';
-  const first=queue()[0];
   return `<div class="top"><div><div class="label">${fmtDayLong(k)}</div><h1>${greet}. Was bringt deine Quests heute voran?</h1></div></div>
   <div class="grid2">
     <div class="stack">
@@ -803,7 +801,6 @@ function vPlan(){
     <form class="addline" id="addBacklog"><input class="field" id="addBacklogIn" placeholder="Aufgabe ins Backlog …" autocomplete="off">${questPicker('addBacklogQ','')}<button class="btn" aria-label="Hinzufügen">+</button></form>
   </div>`;
 }
-const colW=()=>210;
 
 // ----- Kalender: Logbuch der tatsächlich gearbeiteten Zeit
 function timeline(days){
@@ -894,7 +891,6 @@ const TRACK_PRESETS=[
   {key:'pages',icon:'📖',label:'Seiten gelesen',type:'count',unit:'Seiten'},
   {key:'bars',icon:'🎹',label:'Takte gelernt',type:'count',unit:'Takte'},
   {key:'custom',icon:'✏️',label:'Eigene Zahl',type:'count',unit:''}];
-const exKey=n=>(n||'').trim().toLowerCase();
 const exType=ex=>ex.type==='hold'||ex.type==='count'?ex.type:'reps';
 const exUnit=ex=>ex.unit||(exType(ex)==='hold'?'s':exType(ex)==='reps'?'Wdh.':'');
 const exPreset=ex=>TRACK_PRESETS.find(p=>p.type===exType(ex)&&(p.type!=='count'||p.unit===exUnit(ex)))||TRACK_PRESETS[4];
@@ -916,7 +912,6 @@ function exStats(t,ex){const ls=exLogs(t,ex).filter(l=>l.vals.length);const type
   const best=Math.max(...ls.flatMap(l=>l.vals));
   return type==='hold'?`Bestwert ${best} s`:`Bestwert ${best} Wdh. in einem Satz`}
 function exTrainingSec(l){return S.sessions.filter(s=>s.t===l.taskId&&dayKey(s.s)===l.day).reduce((a,s)=>a+(s.e-s.s)/1000,0)+(S.running&&S.running.taskId===l.taskId&&l.day===today()?(Date.now()-S.running.startedAt)/1000:0)}
-let holdRun=null;
 function exAdd(t,ex,val){val=Math.round(+val);if(!(val>0))return;const l=exTodayLog(t,ex,true);l.vals.push(val);l.at=Date.now();save()}
 function exRemove(logId,i){const l=S.logs.find(x=>x.id===logId);if(!l)return;l.vals.splice(i,1);if(!l.vals.length)S.logs=S.logs.filter(x=>x!==l);save()}
 function exHistory(t,ex,n=6){
@@ -1165,7 +1160,6 @@ function bind(){
   one('#rollAll',el=>el.onclick=()=>{const k=today();let o=nextOrder(k);overdue().forEach(t=>{t.day=k;t.order=o++});commit()});
   one('#foldOthers',el=>el.onclick=()=>{ui.othersOpen=!ui.othersOpen;saveUi();render()});
   one('#addToday',el=>el.onsubmit=e=>{e.preventDefault();lastQuest=qpVal('#addQuest');addTask($('#addTitle').value,lastQuest,today());setTimeout(()=>$('#addTitle')?.focus(),0)});
-  one('#sideNewQuest',el=>el.onsubmit=e=>{e.preventDefault();newQuest($('#sideNewQuestIn').value)});
   one('#newQuest',el=>el.onsubmit=e=>{e.preventDefault();newQuest($('#newQuestIn').value);setTimeout(()=>$('#newQuestIn')?.focus(),0)});
   on('[data-addday]','keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const d=e.currentTarget.dataset.addday;planHold=true;addTask(e.currentTarget.value,null,d);setTimeout(()=>document.querySelector(`[data-addday="${d}"]`)?.focus({preventScroll:true}),0)});
   one('#addBacklog',el=>el.onsubmit=e=>{e.preventDefault();addTask($('#addBacklogIn').value,qpVal('#addBacklogQ'),null);setTimeout(()=>$('#addBacklogIn')?.focus(),0)});
@@ -1185,7 +1179,7 @@ function bind(){
   on('.qcard[data-qid]','dragend',()=>{qDrag=null;document.querySelectorAll('.qcard.drag-over').forEach(x=>x.classList.remove('drag-over'))});
   on('.qcard[data-qid]','keydown',e=>{if(e.target!==e.currentTarget||!e.altKey||!/Arrow(Left|Right|Up|Down)/.test(e.key))return;e.preventDefault();
     const ids=activeQuests().map(q=>q.id);const id=e.currentTarget.dataset.qid;const i=ids.indexOf(id);const j=/Left|Up/.test(e.key)?i-1:i+1;if(j<0||j>=ids.length)return;
-    const others=S.quests.filter(q=>q.id!==id);const tgt=j>i?ids[j+1]:ids[j];moveQuest(id,tgt||null);setTimeout(()=>document.querySelector(`[data-qid="${id}"]`)?.focus(),0)});
+    const tgt=j>i?ids[j+1]:ids[j];moveQuest(id,tgt||null);setTimeout(()=>document.querySelector(`[data-qid="${id}"]`)?.focus(),0)});
   on('.qcard[data-qid]','click',e=>{if(e.target.closest('button,input,form,.task'))return;editQuest(e.currentTarget.dataset.qid)});
   // Maus über einer Aufgabe merken (für Leertaste = Timer)
   on('.task[data-id],.pcard[data-id]','mouseenter',e=>{hoverId=e.currentTarget.dataset.id});
@@ -1202,7 +1196,6 @@ function bind(){
   on('[data-delms]','click',e=>{S.milestones=S.milestones.filter(m=>m.id!==e.currentTarget.dataset.delms);commit()});
   on('[data-editq]','click',e=>editQuest(e.currentTarget.dataset.editq));
   on('[data-unarch]','click',e=>{const q=quest(e.currentTarget.dataset.unarch);if(q){q.archived=false;commit()}});
-  one('#vision',el=>el.onchange=()=>{S.settings.vision=el.value;save()});
   one('#saveReview',el=>el.onclick=()=>{S.reviews[weekStart(reviewOffset)]=$('#reviewNote').value;save();$('#rvSaved').textContent='Gespeichert.'});
   // Fokus
   one('#toggle',el=>el.onclick=toggleTimer);
@@ -1374,7 +1367,7 @@ function editQuest(id,mode){
   $('#eqTrk').onchange=e=>{q.tracking=e.target.checked;save();render();saved()};
   $('#eqIc').onclick=()=>{$('#eqIcons').hidden=!$('#eqIcons').hidden};
   document.querySelectorAll('[data-icon]').forEach(b=>b.onclick=()=>{q.icon=b.dataset.icon;save();render();editQuest(id,mode)});
-  const setCol=c=>{q.color=c;S.tasks;save();render();editQuest(id,mode)};
+  const setCol=c=>{q.color=c;save();render();editQuest(id,mode)};
   document.querySelectorAll('[data-col]').forEach(b=>b.onclick=()=>setCol(b.dataset.col));
   $('#eqCol').onchange=e=>setCol(e.target.value);
   document.querySelectorAll('[data-mdmode]').forEach(b=>b.onclick=()=>{const n=$('#eqN');if(n){q.notes=n.value;save()}editQuest(id,b.dataset.mdmode)});
@@ -1623,12 +1616,10 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',ap
 let tick=0;
 setInterval(()=>{
   tick++;
-  const hl=$('[data-holdlive]');if(hl&&holdRun)hl.textContent=fmtClock((Date.now()-holdRun.start)/1000);
   if(!S.running){document.title='Quest';return}
   const t=task(S.running.taskId);if(!t)return;
   const c=$('#clock');if(c&&focusId===t.id)c.textContent=fmtClock(taskSec(t));
   document.querySelectorAll(`[data-live-task="${t.id}"]`).forEach(el=>el.textContent=fmtH(taskSec(t)));
-  const lt=$('[data-live-today]');if(lt)lt.textContent=fmtH(qsum(sessionsBetween(...dayRange(today()))));
   document.title=fmtClock(taskSec(t))+' · '+t.title;
   const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'');
   if(tick%30===0&&(view==='kalender'||view==='review')&&!modalOpen()&&!typing&&!dragId)render();

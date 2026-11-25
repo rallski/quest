@@ -12,6 +12,11 @@ alter table public.quest_state enable row level security;
 -- Zugriff über die Data API nur für angemeldete Konten (die Regeln unten begrenzen auf die eigene Zeile).
 revoke all on public.quest_state from anon;
 grant select, insert, update, delete on public.quest_state to authenticated;
+revoke truncate, references, trigger on public.quest_state from authenticated;
+
+-- Größenbremse: ein Konto kann den Speicher nicht volllaufen lassen (normal sind wenige KB).
+alter table public.quest_state drop constraint if exists quest_state_size;
+alter table public.quest_state add constraint quest_state_size check (octet_length(state::text) <= 2000000);
 
 drop policy if exists "eigene Daten lesen"   on public.quest_state;
 drop policy if exists "eigene Daten anlegen" on public.quest_state;

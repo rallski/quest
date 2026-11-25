@@ -842,15 +842,15 @@ function exToday(l){if(!l||!l.vals.length)return '';
   if(l.type==='count')return lsum(l)+' '+(l.unit||'');
   const g=[];l.vals.forEach(v=>{const x=g[g.length-1];if(x&&x[1]===v)x[0]++;else g.push([1,v])});
   return g.map(([n,v])=>`${n} ${n===1?'Satz':'Sätze'} × ${v} Wdh.`).join(' + ')}
-function exCard(t,ex){
+function exCard(t,ex,del){
   const type=exType(ex),unit=exUnit(ex);const l=exTodayLog(t,ex,false);const prev=exLogs(t,ex).filter(x=>x.day!==today()&&x.vals.length).pop();
   const key=t.id+':'+ex.id;const has=!!(l&&l.vals.length);
-  const head=`<b>${exPreset(ex).icon} ${esc(exLabel(ex))}</b>`;
-  if(has&&!exOpen.has(key))return `<div class="excard closed" data-exid="${ex.id}"><div class="row between">${head}<span class="exdone">✓ ${esc(exToday(l))}</span><button class="btn sm ghost" data-exopen>Ändern</button></div></div>`;
+  const head=`<b>${exPreset(ex).icon} ${esc(exLabel(ex))}</b>`;const x=del?`<button class="btn sm ghost" data-exdrop title="Nicht mehr tracken" aria-label="Nicht mehr tracken">✕</button>`:'';
+  if(has&&!exOpen.has(key))return `<div class="excard closed" data-exid="${ex.id}"><div class="row between">${head}<span class="exdone">✓ ${esc(exToday(l))}</span><button class="btn sm ghost" data-exopen>Ändern</button>${x}</div></div>`;
   const last=has?l.vals[l.vals.length-1]:prev?prev.vals[prev.vals.length-1]:(type==='hold'?30:type==='reps'?5:10);
   const chip=(v,i)=>`<button class="exset" data-exrm="${l.id}:${i}" title="Eintrag entfernen">${type==='reps'?'Satz '+(i+1)+': ':''}<b>${v}${type==='hold'?' s':type==='count'?' '+esc(unit):''}</b> ✕</button>`;
   return `<div class="excard" data-exid="${ex.id}">
-    <div class="row between">${head}<span class="meta">${prev?'Letztes Mal: '+esc(exToday(prev)):''}</span></div>
+    <div class="row between">${head}<span class="row" style="gap:6px"><span class="meta">${prev?'Letztes Mal: '+esc(exToday(prev)):''}</span>${x}</span></div>
     ${has?`<div class="exsets">${l.vals.map(chip).join('')}</div>`:''}
     <div class="row">${type==='reps'
       ?`<input class="field exin exsetsn" type="number" min="1" max="50" value="${prev&&!has?prev.vals.length:1}" aria-label="Sätze"><span class="muted">Sätze ×</span><input class="field exin exreps" type="number" min="1" value="${last}" aria-label="Wiederholungen"><span class="muted">Wdh.</span>`
@@ -910,12 +910,20 @@ function focusTrack(t){
   const add=!pick?(trackingOn(t)?`<div class="fpick"><button class="btn sm ghost" id="ftOpen" type="button">＋ Fortschritt tracken</button></div>`:'')
     :pick.key!=='custom'?`<div class="fpick">${TRACK_PRESETS.filter(p=>p.key==='custom'||!used.has(p.key)).map(p=>`<button class="btn sm" type="button" data-ftrk="${p.key}">${p.icon} ${p.label}</button>`).join('')}<button class="btn sm ghost" type="button" id="ftCancel">✕</button></div>`
     :`<div class="fpick"><input class="field exin" id="ftUnit" style="width:160px" placeholder="Einheit, z. B. km" aria-label="Einheit"><button class="btn sm accent" type="button" id="ftSave">Hinzufügen</button><button class="btn sm ghost" type="button" id="ftCancel">✕</button></div>`;
-  return `<div class="ftrack">${exs.length?`<div class="exwrap" style="margin:0;max-width:none;gap:6px">${exs.map(ex=>exCard(t,ex)).join('')}</div>`:''}${add}</div>`;
+  return `<div class="ftrack">${exs.length?`<div class="exwrap" style="margin:0;max-width:none;gap:6px">${exs.map(ex=>exCard(t,ex,true)).join('')}</div>`:''}${add}</div>`;
 }
 function bindFocusTrack(t){
   const one=(sel,fn)=>{const el=$(sel);if(el)fn(el)};
-  const w=$('.ftrack .exwrap');if(w)bindExercises(t,w,render);
   const r=t.recurId&&S.recurring.find(x=>x.id===t.recurId);
+  const drop=exId=>{t.exercises=(t.exercises||[]).filter(x=>x.id!==exId);if(!t.exercises.length)delete t.exercises;exOpen.delete(t.id+':'+exId);commit()};
+  // Nach dem Löschen des letzten Eintrags verschwindet ein Tracker ohne Einträge wieder (außer bei Wiederholungen, die ihn mitbringen)
+  const tidy=()=>{const keep=r?new Set((r.exercises||[]).map(exPreset).map(p=>p.key)):new Set();
+    const before=(t.exercises||[]).length;
+    t.exercises=(t.exercises||[]).filter(ex=>keep.has(exPreset(ex).key)||S.logs.some(l=>l.taskId===t.id&&sameKind(l,ex)&&l.vals.length));
+    if(!t.exercises.length)delete t.exercises;
+    if((t.exercises||[]).length!==before)save();render()};
+  const w=$('.ftrack .exwrap');if(w){bindExercises(t,w,tidy);
+    w.querySelectorAll('[data-exdrop]').forEach(b=>b.onclick=()=>drop(b.closest('.excard').dataset.exid))}
   const addTracker=(type,unit)=>{t.exercises=(t.exercises||[]).concat({id:uid(),type,unit});if(r)r.exercises=t.exercises.map(x=>({...x}));trackPick=null;commit()};
   one('#ftOpen',el=>el.onclick=()=>{trackPick={taskId:t.id,key:null};render()});
   one('#ftCancel',el=>el.onclick=()=>{trackPick=null;render()});

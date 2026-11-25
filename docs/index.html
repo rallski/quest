@@ -128,7 +128,7 @@ textarea.field{resize:vertical;line-height:1.5}
 
 /* Plan */
 .week{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;overflow-y:hidden;padding-bottom:6px}
-.col{display:flex;flex-direction:column;gap:5px;min-height:280px;min-width:0;overflow-x:hidden;border-radius:10px;padding:4px;border:1px dashed transparent}
+.col{display:flex;flex-direction:column;gap:5px;min-height:280px;min-width:0;border-radius:10px;padding:4px;border:1px dashed transparent}
 .col.drag-over{border-color:var(--accent)}
 .col.past{opacity:.55}
 .col-head{display:flex;justify-content:space-between;align-items:baseline;padding:4px 6px 8px;border-bottom:2px solid var(--line);margin-bottom:4px}
@@ -157,7 +157,11 @@ main>.wrap>.top,main>.wrap>.calbar{flex:0 0 auto}
 .vbody>.focus{min-height:100%}
 main>.wrap{max-width:none}
 main.fit>.wrap>.wk{flex:1}
-@media (max-width:860px){main{padding-bottom:76px}}
+@media (max-width:860px){main{padding-bottom:76px}
+  /* Handy: die ganze Ansicht scrollt (außer Wochenkalender) */
+  main:not(.fit){overflow-y:auto;display:block}
+  main:not(.fit)>.wrap{display:flex}
+  main:not(.fit) .vbody{overflow:visible;flex:none;margin-right:0;padding-right:0}}
 @media (min-width:861px){
   .vbody.split{overflow:hidden;padding-bottom:0}
   .vbody.split>.grid2{height:100%;grid-template-rows:minmax(0,1fr);align-items:stretch}
@@ -165,7 +169,7 @@ main.fit>.wrap>.wk{flex:1}
   .vbody.split .grid2>.card{overflow-y:auto;min-height:0;align-content:start}
   .vbody.plansplit{overflow:hidden;display:flex;flex-direction:column;gap:14px;padding-bottom:0}
   .vbody.plansplit>.week{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr)}
-  .vbody.plansplit>.week .col{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .vbody.plansplit>.week .col{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin}
   .vbody.plansplit>.backlog{flex:0 0 auto;max-height:34%;overflow-y:auto;overscroll-behavior:contain}
 }
 /* Kalender / Logbuch */
@@ -342,7 +346,7 @@ main.fit>.wrap>.wk{flex:1}
 .pos button.on{background:var(--raised);color:var(--fg)}
 .col .addwrap{display:flex;gap:4px;align-items:center;min-width:0}
 .col .addwrap input{min-width:0}
-@media (max-width:860px){.col .addwrap .pos{display:none}}
+@media (max-width:860px){.col .addwrap .pos{display:none}.week.mode-3tage,.week.mode-tag{overflow:visible}.week .col{min-height:120px}}
 .col .addwrap .pos button{line-height:24px;padding:0 5px}
 .select-sm{border:1px solid var(--line-2);background:var(--bg);border-radius:7px;padding:2px 6px;font-size:12px;color:var(--muted)}
 
@@ -738,25 +742,9 @@ function vHeute(){
         <div class="row between" style="margin-bottom:8px"><span class="label">Geschafft heute · ${done.length}</span><span class="meta">${fmtH(qd)} Quest · ${fmtH(other)} andere</span></div>
         <div class="tlist">${done.map(t=>taskRow(t)).join('')||'<div class="empty">Hier landet alles, was du heute abhakst.</div>'}</div>
       </div>
-      <div class="card"><div class="row between" style="margin-bottom:10px"><span class="label">Dein Tag</span><span class="meta">Maus über eine Aufgabe + Leertaste startet den Timer</span></div>${timeline([k])}</div>
     </div>
     <div class="stack">
-      <div class="card" style="display:grid;gap:12px">
-        <div class="label">Quest-Stunden heute</div>
-        <div class="big num" data-live-today>${fmtH(qd)}</div>
-        ${Object.keys(m).length?`<div class="tlist">${Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([q,s])=>`<div class="row" style="font-size:13px"><span class="dot" style="--qc:${qColor(q)}"></span><span style="flex:1">${esc(qName(q))}</span><span class="meta">${fmtH(s)}</span></div>`).join('')}</div>`:'<div class="muted" style="font-size:13px">Starte den Fokus-Timer, dann wird jede Minute deiner Quest gutgeschrieben.</div>'}
-        ${first?`<button class="btn accent" data-focus="${first.id}" style="padding:9px">Fokus starten · ${esc(first.title.length>28?first.title.slice(0,27)+'…':first.title)}</button>`:''}
-      </div>
-      <div class="card" style="display:grid;gap:10px">
-        <div class="row between"><span class="label">Wochenziel</span><span class="meta">${fmtH(wq)} von ${fmtDec(tg)}h</span></div>
-        <div class="prog"><i style="width:${tg?Math.min(100,wq/tg*100):0}%"></i></div>
-        <div class="muted" style="font-size:12.5px">Gemessen wird Zeit, die in Quest-Aufgaben geflossen ist, kein Ergebnis.</div>
-      </div>
-      <div class="card" style="display:grid;gap:8px">
-        <div class="label">Deine Quests</div>
-        ${activeQuests().map(q=>{const n=S.tasks.filter(t=>t.questId===q.id&&!t.doneAt).length;return `<div class="row" style="font-size:13px"><span class="dot" style="--qc:${q.color}"></span><span style="flex:1;min-width:0">${esc(q.title)}</span><span class="meta">${n} offen</span></div>`}).join('')||'<div class="muted" style="font-size:13px">Eine Quest ist ein großes Ziel für dieses Quartal oder Jahr, das du dir vornimmst.</div>'}
-        <form class="addline" id="sideNewQuest" style="margin-top:4px"><input class="field" id="sideNewQuestIn" placeholder="Neue Quest …" autocomplete="off"><button class="btn" aria-label="Quest anlegen">+</button></form>
-      </div>
+      <div class="card"><div class="row between" style="margin-bottom:10px"><span class="label">Dein Tag</span><span class="meta">Maus über eine Aufgabe + Leertaste startet den Timer</span></div>${timeline([k])}</div>
     </div>
   </div>`;
 }

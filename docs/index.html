@@ -89,6 +89,7 @@ h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}
 .field{width:100%;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--bg)}
 textarea.field{resize:vertical;line-height:1.5}
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--qc,var(--muted));background:color-mix(in srgb,var(--qc,var(--muted)) 14%,transparent);padding:1px 7px 1px 6px;border-radius:99px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pill .pn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--qc,var(--muted));flex:0 0 auto}
 
 /* Aufgaben */
@@ -126,18 +127,20 @@ textarea.field{resize:vertical;line-height:1.5}
 .empty{color:var(--muted);padding:12px 4px;font-size:13px}
 
 /* Plan */
-.week{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px}
-.col{display:flex;flex-direction:column;gap:5px;min-height:280px;border-radius:10px;padding:4px;border:1px dashed transparent}
+.week{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow-x:auto;overflow-y:hidden;padding-bottom:6px}
+.col{display:flex;flex-direction:column;gap:5px;min-height:280px;min-width:0;overflow-x:hidden;border-radius:10px;padding:4px;border:1px dashed transparent}
 .col.drag-over{border-color:var(--accent)}
 .col.past{opacity:.55}
 .col-head{display:flex;justify-content:space-between;align-items:baseline;padding:4px 6px 8px;border-bottom:2px solid var(--line);margin-bottom:4px}
 .col.today .col-head{border-bottom-color:var(--accent)}
 .col-head b{font-weight:600;font-size:13px}
 .col input{font-size:12.5px;padding:6px 8px;border:1px solid var(--line);background:var(--panel);border-radius:7px;width:100%}
-.pcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 9px;display:grid;gap:6px;cursor:grab;font-size:12.5px;position:relative}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 9px;display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:6px;cursor:grab;font-size:12.5px;position:relative}
 .pcard::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--qc,transparent)}
 .pcard:hover{border-color:var(--line-2)}
-.pcard .t{overflow-wrap:anywhere;hyphens:auto;cursor:pointer;line-height:1.35}
+.pcard .t{overflow-wrap:break-word;hyphens:auto;cursor:pointer;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pcard .foot>.row{flex:1;min-width:0}
+.pcard .pill{min-width:0;flex:0 1 auto}
 .pcard .foot{display:flex;align-items:center;gap:6px;justify-content:space-between}
 .pcard.done{opacity:.45;cursor:default}
 .pcard.done .t{text-decoration:line-through}
@@ -152,7 +155,7 @@ main>.wrap{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
 main>.wrap>.top,main>.wrap>.calbar{flex:0 0 auto}
 .vbody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:20px;align-content:start;padding:0 4px 24px 0;margin-right:-4px}
 .vbody>.focus{min-height:100%}
-main.fit>.wrap{max-width:none}
+main>.wrap{max-width:none}
 main.fit>.wrap>.wk{flex:1}
 @media (max-width:860px){main{padding-bottom:76px}}
 @media (min-width:861px){
@@ -162,7 +165,7 @@ main.fit>.wrap>.wk{flex:1}
   .vbody.split .grid2>.card{overflow-y:auto;min-height:0;align-content:start}
   .vbody.plansplit{overflow:hidden;display:flex;flex-direction:column;gap:14px;padding-bottom:0}
   .vbody.plansplit>.week{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr)}
-  .vbody.plansplit>.week .col{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  .vbody.plansplit>.week .col{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
   .vbody.plansplit>.backlog{flex:0 0 auto;max-height:34%;overflow-y:auto;overscroll-behavior:contain}
 }
 /* Kalender / Logbuch */
@@ -190,7 +193,7 @@ main.fit>.wrap>.wk{flex:1}
 .wk-now{position:absolute;left:52px;right:0;height:2px;background:var(--accent);z-index:3;pointer-events:none}
 .wk-now::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
 @media (max-width:860px){.wk-head,.wk-grid{grid-template-columns:40px repeat(7,minmax(0,1fr))}.wk-now{left:40px}.wk-day{font-size:11px;padding:8px 0}.wk-day .d{display:block;margin:0}.calbar .sum{margin-left:0;width:100%}.calbar .sum b{font-size:17px}.calbar h1{font-size:22px}}
-.tl-wrap{overflow-x:auto}
+.tl-wrap{overflow-x:auto;overflow-y:hidden;padding:8px 0}
 .tl{display:grid;gap:0 6px;min-width:0}
 .tl-head{font-size:12px;padding:0 2px 8px;display:flex;justify-content:space-between;gap:4px}
 .tl-head b{font-weight:600}
@@ -337,7 +340,9 @@ main.fit>.wrap>.wk{flex:1}
 .pos{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden;flex:0 0 auto}
 .pos button{border:0;background:none;color:var(--faint);padding:0 7px;cursor:pointer;font-size:12px;line-height:28px}
 .pos button.on{background:var(--raised);color:var(--fg)}
-.col .addwrap{display:flex;gap:4px;align-items:center}
+.col .addwrap{display:flex;gap:4px;align-items:center;min-width:0}
+.col .addwrap input{min-width:0}
+@media (max-width:860px){.col .addwrap .pos{display:none}}
 .col .addwrap .pos button{line-height:24px;padding:0 5px}
 .select-sm{border:1px solid var(--line-2);background:var(--bg);border-radius:7px;padding:2px 6px;font-size:12px;color:var(--muted)}
 
@@ -391,8 +396,7 @@ main.fit>.wrap>.wk{flex:1}
 
 /* Plan endlos */
 .week.mode-woche{grid-template-columns:repeat(7,minmax(130px,1fr))}
-.week.mode-2wochen{grid-template-columns:repeat(7,minmax(130px,1fr))}
-.week.mode-2wochen .col{min-height:200px}
+.week.mode-3tage{grid-template-columns:repeat(3,minmax(0,1fr))}
 .week.mode-tag{grid-template-columns:minmax(0,560px)}
 .week.mode-monat{grid-template-columns:repeat(7,minmax(105px,1fr));gap:6px}
 .week.mode-monat .col{min-height:118px;border:1px solid var(--line);background:var(--panel);padding:6px;gap:4px}
@@ -507,6 +511,7 @@ try{const raw=localStorage.getItem(LS);if(raw)S=migrate(JSON.parse(raw))}catch(e
 let ui={othersOpen:false,calMode:'woche',addPos:'bottom',questFilter:'',planHideOthers:false,planWide:false,questTab:'aktiv',tourDone:false};
 try{Object.assign(ui,JSON.parse(localStorage.getItem(UIKEY)||'{}'))}catch(e){}
 ui.calMode='woche';  // Kalender startet immer mit der Woche
+if(ui.planMode==='2wochen')delete ui.planMode;
 const saveUi=()=>{try{localStorage.setItem(UIKEY,JSON.stringify(ui))}catch(e){}};
 
 const hashView=()=>{const h=location.hash.slice(1);return h==='woche'?'plan':(VIEWS[h]?h:null)};
@@ -536,7 +541,7 @@ const task=id=>S.tasks.find(t=>t.id===id);
 const qColor=id=>id?(quest(id)?.color||'#a8a29e'):'var(--other)';
 const qName=id=>id?(quest(id)?.title||'Gelöschte Quest'):'Andere';
 const activeQuests=()=>S.quests.filter(q=>!q.archived);
-const pill=id=>`<span class="pill" style="--qc:${qColor(id)}">${esc(qName(id))}</span>`;
+const pill=id=>`<span class="pill" style="--qc:${qColor(id)}" title="${esc(qName(id))}"><span class="pn">${esc(qName(id))}</span></span>`;
 const CHECK='<svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
 const CHEV='<svg viewBox="0 0 10 10"><path d="M3 1.5L6.5 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 const target=()=>Math.max(0,+S.settings.weeklyTarget||0)*3600;
@@ -592,7 +597,7 @@ function moveTask(id,day,beforeId){
 }
 function delTask(id){const t=task(id);if(!t)return;if(S.running&&S.running.taskId===id)S.running=null;S.tasks=S.tasks.filter(x=>x.id!==id);commit();toast('Aufgabe gelöscht',()=>{S.tasks.push(t);commit()})}
 function focusTask(id){focusId=id;go('fokus')}
-function go(v){if(v==='plan')planAnchor=today();if(v==='kalender'&&view!=='kalender'){ui.calMode='woche';calDay=today()}view=v;if(location.hash.slice(1)!==v)location.hash=v;skMap={};render();$('#app').scrollTop=0}
+function go(v){if(v==='plan'){planAnchor=today();if(isPhone()&&ui.planMode==='woche')ui.planMode='3tage'}if(v==='kalender'&&view!=='kalender'){ui.calMode='woche';calDay=today()}view=v;if(location.hash.slice(1)!==v)location.hash=v;skMap={};render();$('#app').scrollTop=0}
 function newQuest(title){title=(title||'').trim();if(!title)return;const used=S.quests.map(q=>q.color);const q={id:uid(),title,desc:'',target:0,color:COLORS.find(c=>!used.includes(c))||COLORS[S.quests.length%COLORS.length],archived:false};S.quests.push(q);commit();return q}
 // ----- Wiederholungen
 // Regel: {freq:'day'|'week'|'month'|'year', interval, days:[0..6 Mo=0] (nur Woche), pin:'none'|'top'|'bottom', start, end}
@@ -665,7 +670,7 @@ function layoutView(){
   kids.filter(k=>k!==head).forEach(k=>body.appendChild(k));w.appendChild(body);
   const g=body.children.length===1&&body.firstElementChild.matches('.grid2')?body.firstElementChild:null;
   if(g){body.classList.add('split');[...g.children].forEach((c,i)=>{c.dataset.sk=view+':col'+i})}
-  if(view==='plan'&&['woche','tag'].includes(planMode())){body.classList.add('plansplit');
+  if(view==='plan'&&['woche','tag','3tage'].includes(planMode())){body.classList.add('plansplit');
     body.querySelectorAll('.week>.col').forEach(c=>{c.dataset.sk='plan:'+c.dataset.dropDay});
     const b=body.querySelector('.backlog');if(b)b.dataset.sk='plan:backlog'}
 }
@@ -749,7 +754,7 @@ function vHeute(){
       </div>
       <div class="card" style="display:grid;gap:8px">
         <div class="label">Deine Quests</div>
-        ${activeQuests().map(q=>{const n=S.tasks.filter(t=>t.questId===q.id&&!t.doneAt).length;return `<div class="row" style="font-size:13px"><span class="dot" style="--qc:${q.color}"></span><span style="flex:1;min-width:0">${esc(q.title)}</span><span class="meta">${n} offen</span></div>`}).join('')||'<div class="muted" style="font-size:13px">Eine Quest ist ein großes Ziel für dieses Quartal oder Jahr, zum Beispiel „Bachelorarbeit abgeben“.</div>'}
+        ${activeQuests().map(q=>{const n=S.tasks.filter(t=>t.questId===q.id&&!t.doneAt).length;return `<div class="row" style="font-size:13px"><span class="dot" style="--qc:${q.color}"></span><span style="flex:1;min-width:0">${esc(q.title)}</span><span class="meta">${n} offen</span></div>`}).join('')||'<div class="muted" style="font-size:13px">Eine Quest ist ein großes Ziel für dieses Quartal oder Jahr, das du dir vornimmst.</div>'}
         <form class="addline" id="sideNewQuest" style="margin-top:4px"><input class="field" id="sideNewQuestIn" placeholder="Neue Quest …" autocomplete="off"><button class="btn" aria-label="Quest anlegen">+</button></form>
       </div>
     </div>
@@ -766,13 +771,14 @@ function planCard(t){
   </div>`;
 }
 // ----- Plan: Ansichten Tag / Woche / 2 Wochen / Monat; öffnet immer mit der aktuellen Woche
-const PLAN_MODES={tag:'Tag',woche:'Woche','2wochen':'2 Wochen',monat:'Monat'};
+const PLAN_MODES={tag:'Tag','3tage':'3 Tage',woche:'Woche',monat:'Monat'};
+const isPhone=()=>matchMedia('(max-width:860px)').matches;
 let planAnchor=null;
-const planMode=()=>PLAN_MODES[ui.planMode]?ui.planMode:'woche';
+const planMode=()=>PLAN_MODES[ui.planMode]?ui.planMode:(isPhone()?'3tage':'woche');
 function planDays(){const a=planAnchor||today();const m=planMode();
   if(m==='tag')return [a];
   if(m==='woche')return weekDays(weekStart(0,a));
-  if(m==='2wochen'){const s=weekStart(0,a);return [...Array(14)].map((_,i)=>addDays(s,i))}
+  if(m==='3tage')return [a,addDays(a,1),addDays(a,2)];
   const d=keyToDate(a);const first=dayKey(new Date(d.getFullYear(),d.getMonth(),1));const last=dayKey(new Date(d.getFullYear(),d.getMonth()+1,0));
   const out=[];for(let x=weekStart(0,first);x<=addDays(weekStart(0,last),6);x=addDays(x,1))out.push(x);return out}
 function planTitle(days){const m=planMode();const a=planAnchor||today();
@@ -782,7 +788,7 @@ function planTitle(days){const m=planMode();const a=planAnchor||today();
 function planShift(dir){const m=planMode();const a=planAnchor||today();
   if(!dir)planAnchor=today();
   else if(m==='monat'){const d=keyToDate(a);planAnchor=dayKey(new Date(d.getFullYear(),d.getMonth()+dir,1))}
-  else planAnchor=addDays(a,dir*(m==='tag'?1:m==='woche'?7:14));
+  else planAnchor=addDays(a,dir*(m==='tag'?1:m==='3tage'?3:7));
   render()}
 function vPlan(){
   const k=today();if(!planAnchor)planAnchor=k;const m=planMode();const days=planDays();const hide=ui.planHideOthers;
@@ -975,7 +981,7 @@ function trackSection(t){
     ${!pick?`<button class="btn sm" id="trkOpen" style="justify-self:start">＋ Fortschritt tracken</button>`
     :pick.key!=='custom'?`<div class="trkpick">${TRACK_PRESETS.map(p=>`<button class="trkopt" data-trk="${p.key}"><span>${p.icon}</span><span><b>${p.label}</b></span></button>`).join('')}<button class="btn sm ghost" id="trkCancel" style="justify-self:start">Abbrechen</button></div>`
     :`<div class="trkform"><span class="meta">✏️ Eigene Zahl: was zählst du?</span>
-      <input class="field" id="trkUnit" placeholder="Einheit, z. B. km, Wörter, Minuten" autocomplete="off" aria-label="Einheit">
+      <input class="field" id="trkUnit" placeholder="Einheit" autocomplete="off" aria-label="Einheit">
       <div class="row"><button class="btn ghost" id="trkCancel">Abbrechen</button><button class="btn accent" id="trkSave">Hinzufügen</button></div></div>`}
   </div>`;
 }
@@ -1001,7 +1007,7 @@ function focusTrack(t){
   const used=new Set(exs.map(ex=>exPreset(ex).key));
   const add=!pick?(trackingOn(t)?`<div class="fpick"><button class="btn sm ghost" id="ftOpen" type="button">＋ Fortschritt tracken</button></div>`:'')
     :pick.key!=='custom'?`<div class="fpick">${TRACK_PRESETS.filter(p=>p.key==='custom'||!used.has(p.key)).map(p=>`<button class="btn sm" type="button" data-ftrk="${p.key}">${p.icon} ${p.label}</button>`).join('')}<button class="btn sm ghost" type="button" id="ftCancel">✕</button></div>`
-    :`<div class="fpick"><input class="field exin" id="ftUnit" style="width:160px" placeholder="Einheit, z. B. km" aria-label="Einheit"><button class="btn sm accent" type="button" id="ftSave">Hinzufügen</button><button class="btn sm ghost" type="button" id="ftCancel">✕</button></div>`;
+    :`<div class="fpick"><input class="field exin" id="ftUnit" style="width:160px" placeholder="Einheit" aria-label="Einheit"><button class="btn sm accent" type="button" id="ftSave">Hinzufügen</button><button class="btn sm ghost" type="button" id="ftCancel">✕</button></div>`;
   return `<div class="ftrack">${exs.length?`<div class="exwrap" style="margin:0;max-width:none;gap:6px">${exs.map(ex=>exCard(t,ex,true)).join('')}</div>`:''}${add}</div>`;
 }
 function bindFocusTrack(t){
@@ -1089,7 +1095,7 @@ function vQuests(){
   ${ui.questTab==='done'
     ?`<div class="qgrid">${arch.map(q=>`<div class="card qcard" style="--qc:${q.color}"><div class="qhead">${qIcon(q)}<div class="grow"><h2>${esc(q.title)}</h2>${q.desc?`<p>${esc(q.desc)}</p>`:''}</div></div><div class="row between"><span class="meta">${fmtH(S.sessions.filter(s=>s.q===q.id).reduce((a,s)=>a+(s.e-s.s)/1000,0))} investiert</span><span class="row"><button class="btn sm ghost" data-editq="${q.id}">Ansehen</button><button class="btn sm" data-unarch="${q.id}">Reaktivieren</button></span></div></div>`).join('')||'<div class="empty">Noch keine Quest abgeschlossen.</div>'}</div>`
     :`<div class="qgrid">${qs.map(card).join('')}
-    <form class="qnew" id="newQuest"><div style="display:grid;gap:8px;width:100%"><span class="label">Neue Quest</span><input class="field" id="newQuestIn" placeholder="z. B. Marathon laufen" autocomplete="off"><button class="btn">Quest anlegen</button></div></form>
+    <form class="qnew" id="newQuest"><div style="display:grid;gap:8px;width:100%"><span class="label">Neue Quest</span><input class="field" id="newQuestIn" placeholder="Name der Quest" autocomplete="off"><button class="btn">Quest anlegen</button></div></form>
   </div>`}`;
 }
 const qIcon=q=>q.icon?`<span class="qicon emoji">${esc(q.icon)}</span>`:`<span class="qicon"><i></i></span>`;
@@ -1356,10 +1362,10 @@ function editQuest(id,mode){
       <div class="row between"><span class="label">Quest bearbeiten</span><span class="row"><span class="saved" id="eqSaved">Speichert automatisch</span><button class="btn sm ghost" id="eqX" aria-label="Schließen">✕</button></span></div>
       <div class="row" style="flex-wrap:nowrap"><button class="iconbtn" id="eqIc" aria-label="Symbol wählen">${q.icon?esc(q.icon):'<span class="dot" style="--qc:'+q.color+';width:12px;height:12px"></span>'}</button><input class="field" id="eqT" value="${esc(q.title)}" style="font-size:18px;font-weight:500;border-color:transparent;background:none" aria-label="Name"></div>
       <div class="icongrid" id="eqIcons" hidden>${ICONS.map(i=>`<button type="button" data-icon="${i}">${i}</button>`).join('')}<button type="button" data-icon="" title="Kein Symbol" style="font-size:12px;color:var(--muted)">✕</button></div>
-      <label class="meta" style="display:grid;gap:4px">Woran merkst du, dass sie geschafft ist?<input class="field" id="eqDesc" value="${esc(q.desc||'')}" placeholder="z. B. Bachelorarbeit bis 31. März abgegeben"></label>
+      <label class="meta" style="display:grid;gap:4px">Woran merkst du, dass sie geschafft ist?<input class="field" id="eqDesc" value="${esc(q.desc||'')}" placeholder="Woran du es merkst"></label>
       <div class="mdbar"><button type="button" class="${mode==='view'?'on':''}" data-mdmode="view">Ansicht</button><button type="button" class="${mode==='edit'?'on':''}" data-mdmode="edit">Bearbeiten</button><span style="flex:1"></span>
         ${mode==='edit'?`<button type="button" data-ins="# ">H1</button><button type="button" data-ins="## ">H2</button><button type="button" data-wrap="**">B</button><button type="button" data-wrap="*">I</button><button type="button" data-wrap="\`">&lt;/&gt;</button><button type="button" data-ins="- ">• Liste</button><button type="button" data-ins="1. ">1.</button><button type="button" data-ins="- [ ] ">☐</button><button type="button" data-ins="---">—</button>`:''}</div>
-      ${mode==='edit'?`<textarea class="field notes-edit" id="eqN" placeholder="Plan, Gründe, Meilensteine, Checklisten …&#10;- [ ] erster Schritt">${esc(q.notes||'')}</textarea>`:`<div class="md" id="eqMd">${md(q.notes)}</div>`}
+      ${mode==='edit'?`<textarea class="field notes-edit" id="eqN" placeholder="Notizen">${esc(q.notes||'')}</textarea>`:`<div class="md" id="eqMd">${md(q.notes)}</div>`}
     </div>
     <div class="side">
       <div class="sec"><span class="label">Farbe</span><div class="swatches">${SWATCHES.map(c=>`<button type="button" data-col="${c}" class="${c===q.color?'on':''}" style="background:${c}" aria-label="Farbe ${c}"></button>`).join('')}<label title="Eigene Farbe">＋<input type="color" id="eqCol" value="${/^#[0-9a-f]{6}$/i.test(q.color)?q.color:'#a78bfa'}" aria-label="Eigene Farbe"></label></div></div>
@@ -1446,7 +1452,7 @@ function showLogin(note){
   setTimeout(()=>$('#lgE')?.focus(),0);
 }
 function openRecurring(){
-  const list=S.recurring.map(r=>`<div class="row" style="padding:5px 0;flex-wrap:nowrap;border-bottom:1px solid var(--line)"><span class="dot" style="--qc:${qColor(r.questId)}"></span><span style="flex:1;min-width:0;display:grid"><span style="overflow-wrap:anywhere">${esc(r.title)}</span><span class="meta">${esc(recurText(r))}</span></span><button type="button" class="btn sm ghost" data-editrec="${r.id}">Bearbeiten</button><button type="button" class="btn sm ghost" data-delrec="${r.id}" aria-label="Entfernen">✕</button></div>`).join('')||'<div class="muted" style="font-size:13px">Noch keine. Zum Beispiel „Morning Check-in“ jeden Werktag oder „Weekly Planning“ am Montag.</div>';
+  const list=S.recurring.map(r=>`<div class="row" style="padding:5px 0;flex-wrap:nowrap;border-bottom:1px solid var(--line)"><span class="dot" style="--qc:${qColor(r.questId)}"></span><span style="flex:1;min-width:0;display:grid"><span style="overflow-wrap:anywhere">${esc(r.title)}</span><span class="meta">${esc(recurText(r))}</span></span><button type="button" class="btn sm ghost" data-editrec="${r.id}">Bearbeiten</button><button type="button" class="btn sm ghost" data-delrec="${r.id}" aria-label="Entfernen">✕</button></div>`).join('')||'<div class="muted" style="font-size:13px">Noch keine.</div>';
   modal(`<form class="card form" id="rc"><div class="label">Wiederkehrende Aufgaben</div>
     <div>${list}</div>
     <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:10px">

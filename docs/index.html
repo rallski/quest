@@ -337,8 +337,24 @@ textarea.field{resize:vertical;line-height:1.5}
 .exh{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:8px;font-size:12.5px;align-items:baseline}
 
 /* Plan endlos */
-.week.endless{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:var(--colw,210px);scroll-snap-type:x proximity;scroll-behavior:auto}
-.week.endless .col{scroll-snap-align:start}
+.week.mode-woche{grid-template-columns:repeat(7,minmax(130px,1fr))}
+.week.mode-2wochen{grid-template-columns:repeat(7,minmax(130px,1fr))}
+.week.mode-2wochen .col{min-height:200px}
+.week.mode-tag{grid-template-columns:minmax(0,560px)}
+.week.mode-monat{grid-template-columns:repeat(7,minmax(105px,1fr));gap:6px}
+.week.mode-monat .col{min-height:118px;border:1px solid var(--line);background:var(--panel);padding:6px;gap:4px}
+.week.mode-monat .col.today{border-color:var(--accent)}
+.week.mode-monat .col.outside{opacity:.4}
+.week.mode-monat .col-head{border-bottom:0;padding:0 2px 2px;margin:0}
+.week.mode-monat .pcard{padding:4px 6px;font-size:11.5px;gap:2px}
+.week.mode-monat .pcard .foot{display:none}
+.wdhead{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 4px}
+.pday{border:0;background:none;color:inherit;font:inherit;font-weight:600;cursor:pointer;padding:0}
+.pday:hover{color:var(--accent)}
+.col.today .pday{color:var(--accent)}
+.more{border:0;background:none;color:var(--muted);font-size:11.5px;cursor:pointer;text-align:left;padding:2px 4px}
+.more:hover{color:var(--fg)}
+.task.dragging,.pcard.dragging{opacity:.45;outline:1px dashed var(--accent)}
 .col.weekstart .col-head{box-shadow:inset 2px 0 0 var(--line-2)}
 
 /* Quests */
@@ -522,7 +538,7 @@ function moveTask(id,day,beforeId){
 }
 function delTask(id){const t=task(id);if(!t)return;if(S.running&&S.running.taskId===id)S.running=null;S.tasks=S.tasks.filter(x=>x.id!==id);commit();toast('Aufgabe gelöscht',()=>{S.tasks.push(t);commit()})}
 function focusTask(id){focusId=id;go('fokus')}
-function go(v){view=v;if(location.hash.slice(1)!==v)location.hash=v;render();window.scrollTo(0,0)}
+function go(v){if(v==='plan')planAnchor=today();view=v;if(location.hash.slice(1)!==v)location.hash=v;render();window.scrollTo(0,0)}
 function newQuest(title){title=(title||'').trim();if(!title)return;const used=S.quests.map(q=>q.color);const q={id:uid(),title,desc:'',target:0,color:COLORS.find(c=>!used.includes(c))||COLORS[S.quests.length%COLORS.length],archived:false};S.quests.push(q);commit();return q}
 // ----- Wiederholungen
 // Regel: {freq:'day'|'week'|'month'|'year', interval, days:[0..6 Mo=0] (nur Woche), pin:'none'|'top'|'bottom', start, end}
@@ -570,15 +586,13 @@ function applyTheme(){const t=S.settings.theme||'auto';if(t==='auto')delete docu
 // ================= Rendering =================
 function render(){
   applyTheme();
-  const need=[];const last=view==='plan'&&planTo>addDays(today(),6)?planTo:addDays(today(),6);
+  const need=[];const pd=view==='plan'?planDays():[];const last=pd.length&&pd[pd.length-1]>addDays(today(),6)?pd[pd.length-1]:addDays(today(),6);
   for(let d=today();d<=last;d=addDays(d,1))need.push(d);
   if(ensureRecurring(need)|fixTrackers())save();
-  if(view==='plan'&&!planHold){const w=$('.week.endless');if(w)planScroll=w.scrollLeft}
   renderSide();
   $('#mnav').innerHTML=Object.entries(VIEWS).map(([k,l])=>`<button data-go="${k}" class="${k===view?'on':''}">${l}</button>`).join('');
   $('#app').innerHTML=`<div class="wrap">${({heute:vHeute,plan:vPlan,kalender:vKalender,fokus:vFokus,quests:vQuests,review:vReview})[view]()}</div>`;
   bind();
-  if(view==='plan')placePlanScroll();
 }
 // Quest-Auswahl als farbige Chips; Wert lesen mit qpVal('#id')
 const questPicker=(id,sel)=>`<div class="qpick" id="${id}" role="radiogroup" aria-label="Quest">${[{id:'',title:'Andere',color:'var(--other)'},...activeQuests()].map(q=>`<button type="button" role="radio" aria-checked="${(sel||'')===q.id}" class="qp ${(sel||'')===q.id?'on':''}" data-qp="${q.id}" style="--qc:${q.color}" title="${esc(q.title)}"><span class="dot"></span>${q.icon?esc(q.icon)+' ':''}<span class="qpl">${esc(q.title)}</span></button>`).join('')}</div>`;
@@ -676,38 +690,49 @@ function planCard(t){
     <span class="foot"><span class="row" style="gap:6px;min-width:0;flex-wrap:nowrap"><button class="check ${t.doneAt?'on':''}" data-check="${t.id}" aria-label="${t.doneAt?'Wieder öffnen':'Erledigt'}">${CHECK}</button>${t.questId?pill(t.questId):''}</span><span class="meta" ${run?`data-live-task="${t.id}" style="color:var(--accent)"`:''}>${sec>=30||run?fmtH(sec):''}</span></span>
   </div>`;
 }
-const colW=()=>ui.planWide?260:210;
+// ----- Plan: Ansichten Tag / Woche / 2 Wochen / Monat; öffnet immer mit der aktuellen Woche
+const PLAN_MODES={tag:'Tag',woche:'Woche','2wochen':'2 Wochen',monat:'Monat'};
+let planAnchor=null;
+const planMode=()=>PLAN_MODES[ui.planMode]?ui.planMode:'woche';
+function planDays(){const a=planAnchor||today();const m=planMode();
+  if(m==='tag')return [a];
+  if(m==='woche')return weekDays(weekStart(0,a));
+  if(m==='2wochen'){const s=weekStart(0,a);return [...Array(14)].map((_,i)=>addDays(s,i))}
+  const d=keyToDate(a);const first=dayKey(new Date(d.getFullYear(),d.getMonth(),1));const last=dayKey(new Date(d.getFullYear(),d.getMonth()+1,0));
+  const out=[];for(let x=weekStart(0,first);x<=addDays(weekStart(0,last),6);x=addDays(x,1))out.push(x);return out}
+function planTitle(days){const m=planMode();const a=planAnchor||today();
+  if(m==='tag')return fmtDayLong(a);
+  if(m==='monat')return keyToDate(a).toLocaleDateString('de-DE',{month:'long',year:'numeric'});
+  return `${fmtDM(days[0])} – ${keyToDate(days[days.length-1]).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}`}
+function planShift(dir){const m=planMode();const a=planAnchor||today();
+  if(!dir)planAnchor=today();
+  else if(m==='monat'){const d=keyToDate(a);planAnchor=dayKey(new Date(d.getFullYear(),d.getMonth()+dir,1))}
+  else planAnchor=addDays(a,dir*(m==='tag'?1:m==='woche'?7:14));
+  render()}
 function vPlan(){
-  const k=today();
-  if(!planFrom){planFrom=addDays(k,-14);planTo=addDays(k,28)}
-  const days=[];for(let d=planFrom;d<=planTo;d=addDays(d,1))days.push(d);
-  const hide=ui.planHideOthers;
-  return `<div class="top"><div><div class="label" id="planMonth">${keyToDate(k).toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</div><h1>Woche planen</h1></div>
-    <div class="row"><button class="btn sm" id="recurBtn">↻ Wiederkehrend</button><button class="btn sm ${hide?'':'ghost'}" id="hideOthers" title="Aufgaben ohne Quest ein-/ausblenden (V)">${hide?'Andere ausgeblendet':'Andere sichtbar'}</button>
-    <button class="btn sm ghost" data-pscroll="-7" aria-label="Eine Woche zurück">←</button><button class="btn sm" data-pscroll="0">Heute</button><button class="btn sm ghost" data-pscroll="7" aria-label="Eine Woche weiter">→</button></div></div>
-  <div class="week endless" style="--colw:${colW()}px">${days.map(d=>{const ts=dayTasks(d).filter(t=>!hide||t.questId);const q=qsum(sessionsBetween(...dayRange(d)));return `<div class="col ${d===k?'today':''} ${d<k?'past':''} ${wdIdx(d)===0?'weekstart':''}" data-drop-day="${d}" data-colday="${d}">
-    <div class="col-head"><b>${keyToDate(d).toLocaleDateString('de-DE',{weekday:'short',day:'numeric'})}${keyToDate(d).getDate()===1?' '+keyToDate(d).toLocaleDateString('de-DE',{month:'short'}):''}</b><span class="meta">${q?fmtH(q):''}</span></div>
-    ${d>=k?`<div class="addwrap"><input data-addday="${d}" placeholder="+ Aufgabe" autocomplete="off" aria-label="Aufgabe für ${fmtDayLong(d)}">${posToggle()}</div>`:''}
-    ${ts.map(planCard).join('')}
-  </div>`}).join('')}</div>
+  const k=today();if(!planAnchor)planAnchor=k;const m=planMode();const days=planDays();const hide=ui.planHideOthers;
+  const month=keyToDate(planAnchor).getMonth();
+  const col=d=>{const ts=dayTasks(d).filter(t=>!hide||t.questId);const q=qsum(sessionsBetween(...dayRange(d)));
+    const outside=m==='monat'&&keyToDate(d).getMonth()!==month;const shown=m==='monat'?ts.slice(0,4):ts;
+    const head=m==='monat'?String(keyToDate(d).getDate()):keyToDate(d).toLocaleDateString('de-DE',m==='tag'?{weekday:'long',day:'numeric',month:'long'}:{weekday:'short',day:'numeric'});
+    return `<div class="col ${d===k?'today':''} ${d<k?'past':''} ${outside?'outside':''}" data-drop-day="${d}">
+      <div class="col-head"><b>${m==='tag'?head:`<button class="pday" data-pday="${d}" title="Tag öffnen">${head}</button>`}</b><span class="meta">${q?fmtH(q):''}</span></div>
+      ${d>=k&&m!=='monat'?`<div class="addwrap"><input data-addday="${d}" placeholder="+ Aufgabe" autocomplete="off" aria-label="Aufgabe für ${fmtDayLong(d)}">${posToggle()}</div>`:''}
+      ${shown.map(planCard).join('')}${ts.length>shown.length?`<button class="more" data-pday="${d}">+ ${ts.length-shown.length} weitere</button>`:''}
+    </div>`};
+  return `<div class="top"><div><div class="label">${planTitle(days)}</div><h1>Plan</h1></div>
+    <div class="row">
+      <div class="seg" role="group" aria-label="Zeitraum">${Object.entries(PLAN_MODES).map(([key,l])=>`<button data-pmode="${key}" class="${m===key?'on':''}">${l}</button>`).join('')}</div>
+      <button class="btn sm ghost" data-pnav="-1" aria-label="Zurück">←</button><button class="btn sm" data-pnav="0">Heute</button><button class="btn sm ghost" data-pnav="1" aria-label="Weiter">→</button>
+      <button class="btn sm ghost" id="recurBtn">↻ Wiederkehrend</button><button class="btn sm ghost" id="hideOthers" title="Aufgaben ohne Quest ein-/ausblenden (V)">${hide?'Andere ausgeblendet':'Andere sichtbar'}</button></div></div>
+  <div class="week mode-${m}">${m==='monat'?WD.map(w=>`<div class="wdhead">${w}</div>`).join(''):''}${days.map(col).join('')}</div>
   <div class="card backlog" data-drop-day="">
     <div class="row between" style="margin-bottom:10px"><span class="label">Backlog · ohne Tag</span><span class="meta">auf einen Tag ziehen, um es einzuplanen</span></div>
     <div class="tlist">${backlog().map(t=>taskRow(t)).join('')||'<div class="empty">Leer.</div>'}</div>
     <form class="addline" id="addBacklog"><input class="field" id="addBacklogIn" placeholder="Aufgabe ins Backlog …" autocomplete="off">${questPicker('addBacklogQ','')}<button class="btn" aria-label="Hinzufügen">+</button></form>
   </div>`;
 }
-// Scrollposition im Plan halten, beim Rand nachladen
-function planScrollTo(day,smooth){const w=$('.week.endless');if(!w)return;const i=Math.round((keyToDate(day)-keyToDate(planFrom))/DAY);w.scrollTo({left:Math.max(0,i*(colW()+8)),behavior:smooth?'smooth':'auto'})}
-function placePlanScroll(){
-  const w=$('.week.endless');if(!w)return;
-  if(planJump){planScrollTo(planJump==='today'?addDays(today(),-1):planJump);planJump=null}else if(planScroll!=null)w.scrollLeft=planScroll;
-  planHold=false;updatePlanMonth();
-  w.onscroll=()=>{if(planHold)return;planScroll=w.scrollLeft;updatePlanMonth();
-    const step=colW()+8;
-    if(w.scrollLeft<step*2){planFrom=addDays(planFrom,-14);planScroll=w.scrollLeft+14*step;planHold=true;render()}
-    else if(w.scrollLeft+w.clientWidth>w.scrollWidth-step*2){planTo=addDays(planTo,14);planScroll=w.scrollLeft;planHold=true;render()}};
-}
-function updatePlanMonth(){const w=$('.week.endless'),m=$('#planMonth');if(!w||!m)return;const i=Math.floor(w.scrollLeft/(colW()+8))+1;const d=addDays(planFrom,Math.max(0,i));m.textContent=keyToDate(d).toLocaleDateString('de-DE',{month:'long',year:'numeric'})}
+const colW=()=>210;
 
 // ----- Kalender: Logbuch der tatsächlich gearbeiteten Zeit
 function timeline(days){
@@ -1001,7 +1026,10 @@ function vReview(){
 }
 
 // ================= Ereignisse =================
-let dragId=null,notesTimer=null;
+let dragId=null,dragEl=null,dropped=false,notesTimer=null;
+// FLIP-Animation: Elemente gleiten von der alten zur neuen Position
+function flipMove(lists,mut){const els=[];[...new Set(lists)].forEach(l=>l&&els.push(...[...l.children].filter(x=>x.dataset&&x.dataset.id)));const r0=new Map(els.map(x=>[x,x.getBoundingClientRect()]));mut();
+  els.forEach(x=>{if(x===dragEl)return;const a=r0.get(x),b=x.getBoundingClientRect();const dx=a.left-b.left,dy=a.top-b.top;if(!dx&&!dy)return;x.style.transition='none';x.style.transform=`translate(${dx}px,${dy}px)`;requestAnimationFrame(()=>{x.style.transition='transform .18s ease';x.style.transform=''})})}
 function bind(){
   const on=(sel,ev,fn)=>document.querySelectorAll(sel).forEach(el=>el.addEventListener(ev,fn));
   const one=(sel,fn)=>{const el=$(sel);if(el)fn(el)};
@@ -1019,8 +1047,9 @@ function bind(){
   on('[data-addday]','keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const d=e.currentTarget.dataset.addday;planHold=true;addTask(e.currentTarget.value,null,d);setTimeout(()=>document.querySelector(`[data-addday="${d}"]`)?.focus({preventScroll:true}),0)});
   one('#addBacklog',el=>el.onsubmit=e=>{e.preventDefault();addTask($('#addBacklogIn').value,qpVal('#addBacklogQ'),null);setTimeout(()=>$('#addBacklogIn')?.focus(),0)});
   one('#recurBtn',el=>el.onclick=openRecurring);
-  on('[data-pscroll]','click',e=>{const v=+e.currentTarget.dataset.pscroll;const w=$('.week.endless');if(!w)return;
-    if(!v){planScrollTo(addDays(today(),-1),true);return}w.scrollBy({left:v*(colW()+8),behavior:'smooth'})});
+  on('[data-pnav]','click',e=>planShift(+e.currentTarget.dataset.pnav));
+  on('[data-pmode]','click',e=>{ui.planMode=e.currentTarget.dataset.pmode;saveUi();render()});
+  on('[data-pday]','click',e=>{planAnchor=e.currentTarget.dataset.pday;ui.planMode='tag';saveUi();render()});
   one('#hideOthers',el=>el.onclick=()=>{ui.planHideOthers=!ui.planHideOthers;saveUi();render()});
   one('#qFilter',el=>el.onchange=()=>{ui.questFilter=el.value;saveUi();render()});
   on('[data-pos]','click',e=>{ui.addPos=e.currentTarget.dataset.pos;saveUi();document.querySelectorAll('[data-pos]').forEach(b=>b.classList.toggle('on',b.dataset.pos===ui.addPos))});
@@ -1057,15 +1086,23 @@ function bind(){
   one('#fskip',el=>el.onclick=pickTask);
   if(view==='fokus'){const ft=currentFocus(),w=$('.exwrap');if(ft&&w)bindExercises(ft,w,render)}
   one('#fnotes',el=>el.oninput=()=>{const t=task(focusId);if(!t)return;clearTimeout(notesTimer);notesTimer=setTimeout(()=>{t.notes=el.value;save()},500)});
-  // Ziehen und Ablegen
+  // Ziehen und Ablegen: Element wandert live mit, die anderen rutschen animiert zur Seite
   const items='.task[draggable=true],.pcard[draggable=true]';
-  on(items,'dragstart',e=>{dragId=e.currentTarget.dataset.id;e.dataTransfer.setData('text/plain',dragId);e.dataTransfer.effectAllowed='move';const el=e.currentTarget;setTimeout(()=>el.classList.add('dragging'),0)});
-  on('.task,.pcard','dragend',e=>{e.currentTarget.classList.remove('dragging');document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));dragId=null});
-  on('.task,.pcard','dragover',e=>{if(!dragId||e.currentTarget.classList.contains('done'))return;e.preventDefault();e.stopPropagation();document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));e.currentTarget.classList.add('drag-over')});
-  on('.task,.pcard','drop',e=>{if(!dragId)return;e.preventDefault();e.stopPropagation();const tgt=e.currentTarget;if(tgt.dataset.id===dragId||tgt.classList.contains('done'))return;moveTask(dragId,tgt.dataset.day||null,tgt.dataset.id)});
-  on('[data-drop-day]','dragover',e=>{if(!dragId)return;e.preventDefault();document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));e.currentTarget.classList.add('drag-over')});
-  on('[data-drop-day]','dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.classList.remove('drag-over')});
-  on('[data-drop-day]','drop',e=>{if(!dragId)return;e.preventDefault();moveTask(dragId,e.currentTarget.dataset.dropDay||null)});
+  const listOf=box=>box.classList.contains('col')||box.classList.contains('tlist')?box:(box.querySelector('.tlist')||box);
+  on(items,'dragstart',e=>{dragId=e.currentTarget.dataset.id;dragEl=e.currentTarget;dropped=false;e.dataTransfer.setData('text/plain',dragId);e.dataTransfer.effectAllowed='move';const el=dragEl;setTimeout(()=>el.classList.add('dragging'),0)});
+  on(items,'dragend',()=>{const el=dragEl;dragId=null;dragEl=null;document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));if(el)el.classList.remove('dragging');if(!dropped)render();dropped=false});
+  on('[data-drop-day]','dragover',e=>{if(!dragEl)return;e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='move';
+    const box=e.currentTarget,list=listOf(box);
+    document.querySelectorAll('.drag-over').forEach(x=>{if(x!==box)x.classList.remove('drag-over')});box.classList.add('drag-over');
+    const sibs=[...list.children].filter(x=>x!==dragEl&&x.dataset&&x.dataset.id&&!x.classList.contains('done'));
+    let before=sibs.find(x=>{const r=x.getBoundingClientRect();return e.clientY<r.top+r.height/2})||null;
+    if(!before)before=[...list.children].find(x=>x!==dragEl&&(x.classList.contains('done')||x.classList.contains('more')||x.classList.contains('empty')))||null;
+    if(dragEl.parentElement===list&&dragEl.nextElementSibling===before)return;
+    if(before===null&&dragEl.parentElement===list&&dragEl===list.lastElementChild)return;
+    flipMove([list,dragEl.parentElement],()=>list.insertBefore(dragEl,before))});
+  on('[data-drop-day]','drop',e=>{if(!dragEl)return;e.preventDefault();e.stopPropagation();dropped=true;
+    let nx=dragEl.nextElementSibling;while(nx&&!(nx.dataset&&nx.dataset.id&&!nx.classList.contains('done')))nx=nx.nextElementSibling;
+    const id=dragId,day=e.currentTarget.dataset.dropDay||null;dragEl.classList.remove('dragging');moveTask(id,day,nx?nx.dataset.id:null)});
 }
 function toggleTimer(){const t=currentFocus();if(!t)return;if(S.running&&S.running.taskId===t.id)stopTimer();else startTimer(t.id);commit()}
 function focusDone(){
@@ -1396,7 +1433,7 @@ function openPalette(items,ph){
     {label:'Neue Quest',run:()=>{ui.questTab='aktiv';go('quests');setTimeout(()=>$('#newQuestIn')?.focus(),0)}},
     {label:'Aufgaben ohne Quest ein-/ausblenden',hint:'V',run:toggleOthers},
     {label:'Design wechseln (System / Dunkel / Hell)',run:()=>{const o=['auto','dark','light'];S.settings.theme=o[(o.indexOf(S.settings.theme||'auto')+1)%3];commit();toast('Design: '+({auto:'wie das System',dark:'dunkel',light:'hell'})[S.settings.theme])}},
-    {label:'Planlayout ändern (schmale / breite Spalten)',run:()=>{ui.planWide=!ui.planWide;saveUi();planJump='today';go('plan')}},
+    ...Object.entries(PLAN_MODES).map(([key,l])=>({label:'Plan: '+l,run:()=>{ui.planMode=key;saveUi();go('plan')}})),
     {label:'Tastenkürzel',hint:'?',run:openKeys},
     {label:'Einstellungen',hint:'Strg ,',run:openSettings},
     {label:'Einführung noch einmal zeigen',run:()=>openTour(0)},
@@ -1451,7 +1488,7 @@ document.addEventListener('keydown',e=>{
   else if(k==='v'&&(view==='heute'||view==='plan')){e.preventDefault();toggleOthers()}
   else if(e.code==='Space'&&view==='fokus'){e.preventDefault();toggleTimer()}
   else if(e.code==='Space'&&(hoverId||sheetId)){e.preventDefault();const id=hoverId||sheetId;const t=task(id);if(!t||t.doneAt)return;
-    if(S.running&&S.running.taskId===id){stopTimer();commit();toast(`Timer gestoppt · ${t.title}`)}else{startTimer(id);commit();toast(`Timer läuft · ${t.title}`)}if(sheetId)openTask(sheetId)}
+    if(!(S.running&&S.running.taskId===id))startTimer(id);save();closeSheet();hoverId=null;focusTask(id)}
   else if(sheetOpen())return;
   else{const v=Object.keys(VKEYS).find(x=>VKEYS[x]===e.key);if(v){e.preventDefault();go(v)}}
 });

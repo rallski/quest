@@ -146,10 +146,26 @@ textarea.field{resize:vertical;line-height:1.5}
 .pcard .check svg{width:9px;height:9px}
 .backlog .tlist{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 
+/* App-Layout: Kopf fest, Inhalt scrollt in eigenen Bereichen */
+main{overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}
+main>.wrap{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
+main>.wrap>.top,main>.wrap>.calbar{flex:0 0 auto}
+.vbody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:20px;align-content:start;padding:0 4px 24px 0;margin-right:-4px}
+.vbody>.focus{min-height:100%}
+main.fit>.wrap{max-width:none}
+main.fit>.wrap>.wk{flex:1}
+@media (max-width:860px){main{padding-bottom:76px}}
+@media (min-width:861px){
+  .vbody.split{overflow:hidden;padding-bottom:0}
+  .vbody.split>.grid2{height:100%;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .vbody.split .stack{overflow-y:auto;min-height:0;align-content:start;padding:0 4px 24px 0;overscroll-behavior:contain}
+  .vbody.split .grid2>.card{overflow-y:auto;min-height:0;align-content:start}
+  .vbody.plansplit{overflow:hidden;display:flex;flex-direction:column;gap:14px;padding-bottom:0}
+  .vbody.plansplit>.week{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr)}
+  .vbody.plansplit>.week .col{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  .vbody.plansplit>.backlog{flex:0 0 auto;max-height:34%;overflow-y:auto;overscroll-behavior:contain}
+}
 /* Kalender / Logbuch */
-main.fit{overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}
-main.fit>.wrap{flex:1;min-height:0;width:100%;max-width:none;grid-template-rows:auto minmax(0,1fr)}
-@media (max-width:860px){main.fit{padding-bottom:76px}}
 .calbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .calbar h1{margin:0 10px 0 0}
 .calbar .range{min-width:110px;text-align:center;font-size:13.5px}
@@ -576,7 +592,7 @@ function moveTask(id,day,beforeId){
 }
 function delTask(id){const t=task(id);if(!t)return;if(S.running&&S.running.taskId===id)S.running=null;S.tasks=S.tasks.filter(x=>x.id!==id);commit();toast('Aufgabe gelöscht',()=>{S.tasks.push(t);commit()})}
 function focusTask(id){focusId=id;go('fokus')}
-function go(v){if(v==='plan')planAnchor=today();if(v==='kalender'&&view!=='kalender'){ui.calMode='woche';calDay=today()}view=v;if(location.hash.slice(1)!==v)location.hash=v;render();$('#app').scrollTop=0}
+function go(v){if(v==='plan')planAnchor=today();if(v==='kalender'&&view!=='kalender'){ui.calMode='woche';calDay=today()}view=v;if(location.hash.slice(1)!==v)location.hash=v;skMap={};render();$('#app').scrollTop=0}
 function newQuest(title){title=(title||'').trim();if(!title)return;const used=S.quests.map(q=>q.color);const q={id:uid(),title,desc:'',target:0,color:COLORS.find(c=>!used.includes(c))||COLORS[S.quests.length%COLORS.length],archived:false};S.quests.push(q);commit();return q}
 // ----- Wiederholungen
 // Regel: {freq:'day'|'week'|'month'|'year', interval, days:[0..6 Mo=0] (nur Woche), pin:'none'|'top'|'bottom', start, end}
@@ -630,9 +646,28 @@ function render(){
   renderSide();
   $('#mnav').innerHTML=Object.entries(VIEWS).map(([k,l])=>`<button data-go="${k}" class="${k===view?'on':''}">${l}</button>`).join('');
   $('#app').classList.toggle('fit',view==='kalender'&&ui.calMode!=='tag');
+  skSave();
   $('#app').innerHTML=`<div class="wrap">${({heute:vHeute,plan:vPlan,kalender:vKalender,fokus:vFokus,quests:vQuests,review:vReview})[view]()}</div>`;
+  layoutView();
   bind();
   calScrollRestore();
+  skRestore();
+}
+// Kopf der Ansicht bleibt stehen, alles andere kommt in einen eigenen Scrollbereich (.vbody).
+// Auf dem Desktop scrollen die Spalten von Heute/Tag einzeln, im Plan jeder Tag und das Backlog.
+let skMap={};
+function skSave(){document.querySelectorAll('#app [data-sk]').forEach(el=>{skMap[el.dataset.sk]=el.scrollTop})}
+function skRestore(){document.querySelectorAll('#app [data-sk]').forEach(el=>{const v=skMap[el.dataset.sk];if(v)el.scrollTop=v;el.addEventListener('scroll',()=>{skMap[el.dataset.sk]=el.scrollTop},{passive:true})})}
+function layoutView(){
+  const w=$('#app>.wrap');if(!w||w.querySelector(':scope>.wk'))return;
+  const kids=[...w.children];const head=kids[0]&&kids[0].matches('.top,.calbar')?kids[0]:null;
+  const body=document.createElement('div');body.className='vbody';body.dataset.sk='body:'+view+(view==='kalender'?ui.calMode:'');
+  kids.filter(k=>k!==head).forEach(k=>body.appendChild(k));w.appendChild(body);
+  const g=body.children.length===1&&body.firstElementChild.matches('.grid2')?body.firstElementChild:null;
+  if(g){body.classList.add('split');[...g.children].forEach((c,i)=>{c.dataset.sk=view+':col'+i})}
+  if(view==='plan'&&['woche','tag'].includes(planMode())){body.classList.add('plansplit');
+    body.querySelectorAll('.week>.col').forEach(c=>{c.dataset.sk='plan:'+c.dataset.dropDay});
+    const b=body.querySelector('.backlog');if(b)b.dataset.sk='plan:backlog'}
 }
 // Quest-Auswahl als farbige Chips; Wert lesen mit qpVal('#id')
 const questPicker=(id,sel)=>`<div class="qpick" id="${id}" role="radiogroup" aria-label="Quest">${[{id:'',title:'Andere',color:'var(--other)'},...activeQuests()].map(q=>`<button type="button" role="radio" aria-checked="${(sel||'')===q.id}" class="qp ${(sel||'')===q.id?'on':''}" data-qp="${q.id}" style="--qc:${q.color}" title="${esc(q.title)}"><span class="dot"></span>${q.icon?esc(q.icon)+' ':''}<span class="qpl">${esc(q.title)}</span></button>`).join('')}</div>`;

@@ -485,6 +485,7 @@ const LS='quest-app-v1', UIKEY='quest-ui-v1';
 const VIEWS={heute:'Heute',plan:'Plan',kalender:'Kalender',fokus:'Fokus',quests:'Quests',review:'Review'};
 const VKEYS={heute:'1',plan:'2',kalender:'3',fokus:'F',quests:'4',review:'5'};
 const WD=['Mo','Di','Mi','Do','Fr','Sa','So'];
+const APP_VERSION='25.11. 16:48';  // bei jedem Veröffentlichen hochsetzen (Datum Uhrzeit)
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 const blankSettings=()=>({theme:'auto',weeklyTarget:20,vision:''});
 const blank=()=>({v:2,quests:[],tasks:[],milestones:[],sessions:[],recurring:[],logs:[],running:null,reviews:{},settings:blankSettings(),updatedAt:0});
@@ -698,6 +699,7 @@ function renderSide(){
     <div class="side-keys"><span>Neue Aufgabe</span><kbd>N</kbd><span>Befehle</span><kbd>Strg K</kbd><span>Alle Tastenkürzel</span><kbd>?</kbd></div>
     <button class="btn sm ghost" id="settingsBtn" style="justify-self:start;padding-left:0">Einstellungen</button>
     <div id="sync">${syncText}</div>
+    <div class="meta" style="font-size:10.5px">Version ${APP_VERSION}</div>
   </div>`;
 }
 

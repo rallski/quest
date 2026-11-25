@@ -15,6 +15,7 @@ quests (id, title, desc, target, color, icon, notes, tracking, archived), tasks 
 
 ## Arbeitsweise
 - Änderungen lokal testen: `python -m http.server 8766 --bind 127.0.0.1` im Projektordner, dann im Browser `http://127.0.0.1:8766/docs/index.html?v=N` (Query gegen Cache). Testdaten danach wieder entfernen.
+- Vor jedem Veröffentlichen `APP_VERSION` in `docs/index.html` auf Datum und Uhrzeit setzen (wird unten links unter „Synchronisiert“ angezeigt, damit der Nutzer sieht, ob die neue Version da ist).
 - Veröffentlichen: committen und `git push` (SSH-Schlüssel ist eingerichtet, `GIT_SSH_COMMAND='ssh -o BatchMode=yes'`). Nach 1–2 Minuten online.
 - Echte Nutzerdaten nur lesen; ändern nur auf ausdrücklichen Wunsch und dann `updated_at` und `state.updatedAt` hochsetzen.
 - Fortschritt-Tracking erscheint nur bei Quests mit `tracking: true`; Schalter „Fortschritt tracken“ im Dialog „Quest bearbeiten“ (aktuell an bei „Hobby & Freizeit“).

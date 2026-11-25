@@ -13,10 +13,10 @@ quests (id, title, desc, target, color, icon, notes, tracking, archived), tasks 
 
 ## Arbeitsweise
 - Änderungen lokal testen: `python -m http.server 8766 --bind 127.0.0.1` im Projektordner, dann im Browser `http://127.0.0.1:8766/docs/index.html?v=N` (Query gegen Cache). Testdaten danach wieder entfernen.
-- Vor jedem Veröffentlichen `APP_VERSION` in `docs/index.html` hochsetzen: Datum · Nr. (z. B. „25.11. · Nr. 2“, Nr. pro Tag hochzählen, keine Uhrzeit) (wird unten links unter „Synchronisiert“ angezeigt, damit der Nutzer sieht, ob die neue Version da ist).
+- Vor jedem Veröffentlichen `APP_VERSION` in `docs/index.html` um 1 erhöhen (nur eine fortlaufende Zahl, kein Datum, keine Uhrzeit) (wird unten links unter „Synchronisiert“ angezeigt, damit der Nutzer sieht, ob die neue Version da ist).
 - Alte Desktop-App (`desktop/`) und claude.ai-Version (`artifact/`) wurden am 25.11.2026 entfernt; der Nutzer arbeitet nur im Browser.
 - GitHub Pages hat ein weiches Limit von etwa 10 Veröffentlichungen pro Stunde: viele kleine Korrekturen bündeln.
-- Veröffentlichen: committen und `git push` (SSH-Schlüssel ist eingerichtet, `GIT_SSH_COMMAND='ssh -o BatchMode=yes'`). Nach 1–2 Minuten online.
+- Veröffentlichen: committen und `git push` (SSH-Schlüssel ist eingerichtet, `GIT_SSH_COMMAND='ssh -o BatchMode=yes'`). Nach 1–2 Minuten online; nach dem Push nicht auf das Online-Gehen warten.
 - Echte Nutzerdaten nur lesen; ändern nur auf ausdrücklichen Wunsch und dann `updated_at` und `state.updatedAt` hochsetzen.
 - Fortschritt-Tracking erscheint nur bei Quests mit `tracking: true`; Schalter „Fortschritt tracken“ im Dialog „Quest bearbeiten“ (aktuell an bei „Hobby & Freizeit“).
 - Fokus-Musik (YouTube-Player) wurde ausprobiert und auf Wunsch wieder entfernt (private Playlists wie „Mag ich“ lassen sich nicht einbetten).

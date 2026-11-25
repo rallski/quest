@@ -609,6 +609,7 @@ function musicSrc(){
   const u=(S.settings.music||'').trim();if(!u)return null;
   const list=(u.match(/[?&]list=([\w-]+)/)||u.match(/\/browse\/VL([\w-]+)/)||[])[1]||null;
   const vid=(u.match(/[?&]v=([\w-]{11})/)||u.match(/youtu\.be\/([\w-]{11})/)||[])[1]||null;
+  if(list&&/^(LM|LL|WL|SE)$/.test(list))return {list:null,vid:null,ext:`https://music.youtube.com/playlist?list=${list}`,noEmbed:true,priv:true};
   if(!list&&!vid){
     // Künstler-Seite oder Album-Seite: nur zum Öffnen in YouTube Music, nicht abspielbar im Player
     if(/^https?:\/\/[\w.]*youtube\.com\//.test(u))return {list:null,vid:null,ext:u.replace(/[?&](si|drli)=[^&]*/g,''),noEmbed:true};
@@ -616,16 +617,17 @@ function musicSrc(){
   }
   return {list,vid,ext:list?`https://music.youtube.com/playlist?list=${list}`:`https://music.youtube.com/watch?v=${vid}`};
 }
-let yt=null,ytReady=false,ytKey='',ytLoading=false;
+let yt=null,ytReady=false,ytKey='',ytLoading=false,ytErr='';
 function musicBar(run){
   const m=musicSrc();
   if(!m)return `<div class="musicbar"><button class="btn sm ghost" id="muSet" type="button">♪ Fokus-Musik einrichten</button></div>`;
-  if(m.noEmbed)return `<div class="musicbar" style="flex-direction:column"><div class="row" style="justify-content:center"><a class="btn sm ghost" id="muExt" href="${esc(m.ext)}" target="_blank" rel="noopener">In YouTube Music öffnen ↗</a><button class="btn sm ghost" id="muSet" type="button">♪ Link ändern</button></div><span class="meta" style="max-width:420px">Der gespeicherte Link zeigt auf eine Künstler- oder Albumseite. Damit die Musik hier mitläuft, brauchst du den Link einer Playlist: in YouTube Music bei „Top-Songs“ auf „Alle anzeigen“ oder ein Album öffnen, dann „Teilen“ → „Link kopieren“.</span></div>`;
+  if(m.noEmbed)return `<div class="musicbar" style="flex-direction:column"><div class="row" style="justify-content:center"><a class="btn sm ghost" id="muExt" href="${esc(m.ext)}" target="_blank" rel="noopener">In YouTube Music öffnen ↗</a><button class="btn sm ghost" id="muSet" type="button">♪ Link ändern</button></div><span class="meta" style="max-width:420px">${m.priv?'Das ist eine private Liste (z. B. „Mag ich“). Die spielt YouTube nur in der eigenen App ab. Leg eine eigene Playlist an, stell sie auf „Nicht gelistet“ und nimm deren Link.':'Der gespeicherte Link zeigt auf eine Künstler- oder Albumseite.'} ${m.priv?'':' Damit die Musik hier mitläuft, brauchst du den Link einer Playlist: in YouTube Music bei „Top-Songs“ auf „Alle anzeigen“ oder ein Album öffnen, dann „Teilen“ → „Link kopieren“.'}</span></div>`;
   const on=ui.musicOn!==false;
   return `<div class="musicbar">
     <button class="btn sm ${on?'':'ghost'}" id="muOn" type="button" title="Musik im Fokus an oder aus">♪ Musik ${on?'an':'aus'}</button>
     ${on?`<button class="btn sm ghost" id="muNext" type="button" title="Nächstes Lied">⏭</button><button class="btn sm ghost" id="muMute" type="button" title="Ton">${ui.musicMuted?'🔇':'🔊'}</button>`:''}
     <a class="btn sm ghost" id="muExt" href="${esc(m.ext)}" target="_blank" rel="noopener">In YouTube Music öffnen ↗</a>
+    <span class="meta" id="muErr" style="flex-basis:100%;max-width:420px;margin:0 auto">${on&&ytErr?esc(ytErr):''}</span>
   </div>`;
 }
 function loadYT(){
@@ -638,12 +640,20 @@ function makePlayer(){
   const m=musicSrc();if(!m)return;const key=(m.list||'')+'|'+(m.vid||'');
   if(yt&&ytKey===key)return;
   if(yt){try{yt.destroy()}catch(e){}yt=null}
-  ytReady=false;ytKey=key;$('#music').innerHTML='<div id="musicHost"></div>';
+  ytReady=false;ytErr='';ytKey=key;$('#music').innerHTML='<div id="musicHost"></div>';
   const pv={autoplay:0,controls:1,rel:0,playsinline:1,modestbranding:1};
   if(m.list){pv.listType='playlist';pv.list=m.list}
-  yt=new YT.Player('musicHost',{width:'100%',height:'100%',videoId:m.vid||undefined,playerVars:pv,
-    events:{onReady:()=>{ytReady=true;syncMusic()}}});
+  const opts={width:'100%',height:'100%',playerVars:pv};if(m.vid)opts.videoId=m.vid;
+  yt=new YT.Player('musicHost',Object.assign(opts,{
+    events:{onReady:()=>{ytReady=true;syncMusic();
+        // Leere Liste = privat oder gesperrt
+        if(m.list)setTimeout(()=>{try{const pl=yt.getPlaylist();if(!pl||!pl.length)musicError('Diese Playlist lässt sich hier nicht abspielen. Sie ist wahrscheinlich privat. Stell sie in YouTube auf „Nicht gelistet“ oder „Öffentlich“.')}catch(e){}},2500)},
+      onError:e=>{const c=e.data;
+        if(c===101||c===150){musicError('Dieses Lied darf nur bei YouTube selbst laufen, springe zum nächsten …');try{yt.nextVideo()}catch(x){}}
+        else musicError('Diese Playlist oder dieses Lied lässt sich hier nicht abspielen.')},
+      onStateChange:e=>{if(e.data===1&&ytErr){ytErr='';const el=$('#muErr');if(el)el.textContent=''}}}}));
 }
+function musicError(t){ytErr=t;const el=$('#muErr');if(el)el.textContent=t}
 function syncMusic(){
   const box=$('#music');const m=musicSrc();const on=m&&!m.noEmbed&&ui.musicOn!==false;
   const t=view==='fokus'?currentFocus():null;
@@ -1187,7 +1197,7 @@ function focusDone(){
 // ================= Dialoge =================
 function closeModal(){$('#modal').innerHTML=''}
 const modalOpen=()=>!!$('#modal').innerHTML;
-function modal(html){$('#modal').innerHTML=`<div class="overlay" id="ov">${html}</div>`;$('#ov').onclick=e=>{if(e.target.id==='ov')closeModal()}}
+function modal(html){$('#modal').innerHTML=`<div class="overlay" id="ov">${html}</div>`;let downOv=false;$('#ov').onmousedown=e=>{downOv=e.target.id==='ov'};$('#ov').onclick=e=>{if(e.target.id==='ov'&&downOv)closeModal();downOv=false}}
 function dayOptions(sel){
   const k=today();const opts=[['','Backlog (ohne Tag)'],[k,'Heute'],[addDays(k,1),'Morgen']];
   for(let i=2;i<7;i++)opts.push([addDays(k,i),fmtDayLong(addDays(k,i))]);

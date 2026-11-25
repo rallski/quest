@@ -607,15 +607,20 @@ function render(){
 // Premium/Anmeldung kommt vom Browser, Quest sieht kein Konto.
 function musicSrc(){
   const u=(S.settings.music||'').trim();if(!u)return null;
-  const list=(u.match(/[?&]list=([\w-]+)/)||[])[1]||null;
+  const list=(u.match(/[?&]list=([\w-]+)/)||u.match(/\/browse\/VL([\w-]+)/)||[])[1]||null;
   const vid=(u.match(/[?&]v=([\w-]{11})/)||u.match(/youtu\.be\/([\w-]{11})/)||[])[1]||null;
-  if(!list&&!vid)return null;
+  if(!list&&!vid){
+    // Künstler-Seite oder Album-Seite: nur zum Öffnen in YouTube Music, nicht abspielbar im Player
+    if(/^https?:\/\/[\w.]*youtube\.com\//.test(u))return {list:null,vid:null,ext:u.replace(/[?&](si|drli)=[^&]*/g,''),noEmbed:true};
+    return null;
+  }
   return {list,vid,ext:list?`https://music.youtube.com/playlist?list=${list}`:`https://music.youtube.com/watch?v=${vid}`};
 }
 let yt=null,ytReady=false,ytKey='',ytLoading=false;
 function musicBar(run){
   const m=musicSrc();
   if(!m)return `<div class="musicbar"><button class="btn sm ghost" id="muSet" type="button">♪ Fokus-Musik einrichten</button></div>`;
+  if(m.noEmbed)return `<div class="musicbar" style="flex-direction:column"><div class="row" style="justify-content:center"><a class="btn sm ghost" id="muExt" href="${esc(m.ext)}" target="_blank" rel="noopener">In YouTube Music öffnen ↗</a><button class="btn sm ghost" id="muSet" type="button">♪ Link ändern</button></div><span class="meta" style="max-width:420px">Der gespeicherte Link zeigt auf eine Künstler- oder Albumseite. Damit die Musik hier mitläuft, brauchst du den Link einer Playlist: in YouTube Music bei „Top-Songs“ auf „Alle anzeigen“ oder ein Album öffnen, dann „Teilen“ → „Link kopieren“.</span></div>`;
   const on=ui.musicOn!==false;
   return `<div class="musicbar">
     <button class="btn sm ${on?'':'ghost'}" id="muOn" type="button" title="Musik im Fokus an oder aus">♪ Musik ${on?'an':'aus'}</button>
@@ -640,7 +645,7 @@ function makePlayer(){
     events:{onReady:()=>{ytReady=true;syncMusic()}}});
 }
 function syncMusic(){
-  const box=$('#music');const m=musicSrc();const on=m&&ui.musicOn!==false;
+  const box=$('#music');const m=musicSrc();const on=m&&!m.noEmbed&&ui.musicOn!==false;
   const t=view==='fokus'?currentFocus():null;
   const play=!!(on&&S.running&&(!t||S.running.taskId===t.id));
   if(box)box.classList.toggle('off',!(on&&view==='fokus'));
@@ -1170,7 +1175,7 @@ document.addEventListener('click',e=>{
   if(b.id==='muOn'){ui.musicOn=ui.musicOn===false;saveUi();render();return}
   if(b.id==='muNext'){try{yt&&ytReady&&yt.nextVideo()}catch(e){}return}
   if(b.id==='muMute'){ui.musicMuted=!ui.musicMuted;saveUi();render();return}
-  if(b.id==='muExt'){ui.musicOn=false;saveUi();setTimeout(render,0)}  // eingebetteten Player aus, sonst läuft es doppelt
+  if(b.id==='muExt'&&!musicSrc()?.noEmbed){ui.musicOn=false;saveUi();setTimeout(render,0)}  // eingebetteten Player aus, sonst läuft es doppelt
 });
 function toggleTimer(){const t=currentFocus();if(!t)return;if(S.running&&S.running.taskId===t.id)stopTimer();else startTimer(t.id);commit()}
 function focusDone(){
@@ -1336,7 +1341,7 @@ function editQuest(id,mode){
 function openSettings(){
   modal(`<form class="card form" id="st"><div class="label">Einstellungen</div>
     <label>Wochenziel Quest-Stunden<input class="field" id="stTg" type="number" min="0" step="1" value="${S.settings.weeklyTarget}"></label>
-    <label>Fokus-Musik · Link zu einer Playlist (YouTube oder YouTube Music)<input class="field" id="stMu" value="${esc(S.settings.music||'')}" placeholder="https://music.youtube.com/playlist?list=…"><span class="meta">Läuft im Fokus, solange der Timer läuft.</span></label>
+    <label>Fokus-Musik · Link zu einer Playlist (YouTube oder YouTube Music)<input class="field" id="stMu" value="${esc(S.settings.music||'')}" placeholder="https://music.youtube.com/playlist?list=…"><span class="meta">Läuft im Fokus, solange der Timer läuft. Es muss eine Playlist oder ein Album sein, keine Künstlerseite (Künstler → „Top-Songs“ → „Alle anzeigen“ → „Teilen“).</span></label>
     <label>Darstellung<select class="field" id="stTh">${[['auto','Wie das System'],['dark','Dunkel'],['light','Hell']].map(([v,l])=>`<option value="${v}" ${S.settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label>
     <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px">
       <span class="label">Konto</span>

@@ -479,7 +479,7 @@ const LS='quest-app-v1', UIKEY='quest-ui-v1';
 const VIEWS={heute:'Heute',plan:'Plan',kalender:'Kalender',fokus:'Fokus',quests:'Quests',review:'Review'};
 const VKEYS={heute:'1',plan:'2',kalender:'3',fokus:'F',quests:'4',review:'5'};
 const WD=['Mo','Di','Mi','Do','Fr','Sa','So'];
-const APP_VERSION='1.02';  // bei jeder Änderung um 0.01 erhöhen (1.01, 1.02, …)
+const APP_VERSION='1.03';  // bei jeder Änderung um 0.01 erhöhen (1.01, 1.02, …)
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 const blankSettings=()=>({theme:'auto',weeklyTarget:20,vision:''});
 const blank=()=>({v:2,quests:[],tasks:[],milestones:[],sessions:[],recurring:[],logs:[],running:null,reviews:{},settings:blankSettings(),updatedAt:0});
@@ -1388,6 +1388,7 @@ function openSettings(){
     <label>Darstellung<select class="field" id="stTh">${[['auto','Wie das System'],['dark','Dunkel'],['light','Hell']].map(([v,l])=>`<option value="${v}" ${S.settings.theme===v?'selected':''}>${l}</option>`).join('')}</select></label>
     <div style="border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px">
       <span class="label">Konto</span>
+      ${sbUser?quotaHtml():''}
       ${sbUser?`<div class="row between"><span style="font-size:13px">Angemeldet als ${esc(sbUser.email||'')}</span><button type="button" class="btn sm" id="stOut">Abmelden</button></div>`
         :sb?`<div class="row between"><span class="muted" style="font-size:13px">Nicht angemeldet, Daten nur auf diesem Gerät.</span><button type="button" class="btn sm" id="stIn">Anmelden</button></div>`
         :`<span class="muted" style="font-size:13px">Kein Server verbunden, Daten nur auf diesem Gerät.</span>`}
@@ -1627,6 +1628,17 @@ setInterval(()=>{
 
 // ================= Synchronisierung über Supabase =================
 // Eine Zeile pro Konto in der Tabelle quest_state. Gewinnt der neuere Stand (updated_at).
+// Speicherplatz auf dem Server: Grenze pro Konto (Tabelle quest_limits, sonst 2 MB). Warnung ab 75 %.
+let quotaMax=2000000,quotaWarned=false;
+// Größe wie in der Datenbank gezählt (dort steht nach jedem : und , ein Leerzeichen)
+function dataBytes(){const j=JSON.stringify(S);return new TextEncoder().encode(j).length+(j.match(/[:,]/g)||[]).length}
+const fmtBytes=b=>b<1e6?Math.max(1,Math.round(b/1000))+' KB':(b/1e6).toFixed(1).replace('.0','').replace('.',',')+' MB';
+function quotaHtml(){
+  const b=dataBytes(),pct=Math.min(100,b/quotaMax*100);
+  return `<div style="display:grid;gap:6px"><div class="row between"><span class="label">Speicher auf dem Server</span><span class="meta">${fmtBytes(b)} von ${fmtBytes(quotaMax)} · ${pct<1?'unter 1':Math.round(pct)} %</span></div>
+    <div class="prog"><i style="width:${Math.max(pct,1)}%;${pct>=75?'background:var(--danger)':''}"></i></div>
+    ${pct>=75?`<span style="font-size:12.5px;color:var(--danger)">Fast voll. Bei 100 % kann nicht mehr auf den Server gespeichert werden. Sag Bescheid, dann wird die Grenze erhöht oder Altes archiviert.</span>`:''}</div>`}
+function quotaCheck(){if(quotaWarned||!sbUser)return;if(dataBytes()>=quotaMax*.75){quotaWarned=true;toast('Speicher auf dem Server zu über 75 % voll, siehe Einstellungen')}}
 const CFG=window.QUEST_CONFIG||{};
 let sb=null,sbUser=null,channel=null,writing=false,dirty=false,flushTimer=null,syncText='Lokal gespeichert';
 const setSync=t=>{syncText=t;const el=$('#sync');if(el)el.textContent=t};
@@ -1635,8 +1647,10 @@ async function flush(){
   if(!sb||!sbUser||writing||!dirty)return;writing=true;dirty=false;
   try{
     const {error}=await sb.from('quest_state').upsert({user_id:sbUser.id,state:S,updated_at:S.updatedAt});
-    if(error)throw error;setSync('Synchronisiert');
-  }catch(e){dirty=true;setSync(navigator.onLine?'Sync-Fehler, neuer Versuch …':'Offline, wird später synchronisiert');console.warn(e)}
+    if(error)throw error;setSync('Synchronisiert');quotaCheck();
+  }catch(e){
+    if(/Speichergrenze/.test(e?.message||'')){writing=false;setSync('Speicher voll, nur lokal gespeichert');toast('Speicher auf dem Server ist voll, siehe Einstellungen');return}
+    dirty=true;setSync(navigator.onLine?'Sync-Fehler, neuer Versuch …':'Offline, wird später synchronisiert');console.warn(e)}
   writing=false;if(dirty)flushTimer=setTimeout(flush,5000);
 }
 function applyRemote(row){
@@ -1655,6 +1669,8 @@ async function pull(){
 }
 async function onSignedIn(user){
   sbUser=user;setSync('Verbinde …');await pull();
+  try{const {data}=await sb.from('quest_limits').select('max_bytes').eq('user_id',user.id).maybeSingle();if(data&&data.max_bytes)quotaMax=data.max_bytes}catch(e){}
+  quotaCheck();
   if(channel)sb.removeChannel(channel);
   channel=sb.channel('quest-'+user.id)
     .on('postgres_changes',{event:'*',schema:'public',table:'quest_state',filter:'user_id=eq.'+user.id},p=>{if(p.new)applyRemote(p.new)})

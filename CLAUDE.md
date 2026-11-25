@@ -5,7 +5,7 @@ Der Nutzer spricht Deutsch, ist kein Entwickler und möchte eine schlichte, gut 
 
 ## Wo was liegt
 - **App:** `docs/index.html` (eine Datei, HTML/CSS/JS ohne Build). Online unter https://rallski.github.io/quest/ (GitHub Pages aus `main` / `docs`).
-- **Server:** Supabase-Projekt `vazmbgsfquwipidjkpta`, Tabelle `public.quest_state` (eine Zeile pro Konto, `state` jsonb, `updated_at` ms; neuerer Stand gewinnt). Zugangsdaten für die App in `docs/config.js`. Schema in `supabase.sql`. Sicherung des alten Stands in `public.quest_backup`.
+- **Server:** Supabase-Projekt `vazmbgsfquwipidjkpta`, Tabelle `public.quest_state` (eine Zeile pro Konto, `state` jsonb, `updated_at` ms; neuerer Stand gewinnt). Zugangsdaten für die App in `docs/config.js`. Schema in `supabase.sql`. Sicherung des alten Stands in `public.quest_backup`. Speichergrenze pro Konto per Trigger (Standard 2 MB, eigenes Konto 20 MB in `public.quest_limits`), höchstens 100 Konten (Trigger auf `auth.users`). Die App zeigt die Nutzung in den Einstellungen und warnt ab 75 %.
 - **Notion:** Seite „Quest-Zentrale“ mit Datenbank „Material“ für Notizen, Transkripte, Links. Die Quest-App plant, Notion enthält die Arbeit.
 
 ## Datenmodell (state)

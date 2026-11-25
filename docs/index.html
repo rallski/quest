@@ -153,7 +153,7 @@ textarea.field{resize:vertical;line-height:1.5}
 main{overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}
 main>.wrap{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
 main>.wrap>.top,main>.wrap>.calbar{flex:0 0 auto}
-.vbody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:20px;align-content:start;padding:0 4px 24px 0;margin-right:-4px}
+.vbody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-content:start;padding:0 4px 24px 0;margin-right:-4px}
 .vbody>.focus{min-height:100%}
 main>.wrap{max-width:none}
 main.fit>.wrap>.wk{flex:1}
@@ -163,10 +163,10 @@ main.fit>.wrap>.wk{flex:1}
   main:not(.fit)>.wrap{display:flex}
   main:not(.fit) .vbody{overflow:visible;flex:none;margin-right:0;padding-right:0}}
 @media (min-width:861px){
-  .vbody.split{overflow:hidden;padding-bottom:0}
-  .vbody.split>.grid2{height:100%;grid-template-rows:minmax(0,1fr);align-items:stretch}
-  .vbody.split .stack{overflow-y:auto;min-height:0;align-content:start;padding:0 4px 24px 0;overscroll-behavior:contain}
-  .vbody.split .grid2>.card{overflow-y:auto;min-height:0;align-content:start}
+  .vbody.vsplit{overflow:hidden;padding-bottom:0}
+  .vbody.vsplit>.grid2{height:100%;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .vbody.vsplit .stack{overflow-y:auto;min-height:0;align-content:start;padding:0 4px 24px 0;overscroll-behavior:contain}
+  .vbody.vsplit .grid2>.card{overflow-y:auto;min-height:0;align-content:start}
   .vbody.plansplit{overflow:hidden;display:flex;flex-direction:column;gap:14px;padding-bottom:0}
   .vbody.plansplit>.week{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr)}
   .vbody.plansplit>.week .col{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin}
@@ -673,7 +673,7 @@ function layoutView(){
   const body=document.createElement('div');body.className='vbody';body.dataset.sk='body:'+view+(view==='kalender'?ui.calMode:'');
   kids.filter(k=>k!==head).forEach(k=>body.appendChild(k));w.appendChild(body);
   const g=body.children.length===1&&body.firstElementChild.matches('.grid2')?body.firstElementChild:null;
-  if(g){body.classList.add('split');[...g.children].forEach((c,i)=>{c.dataset.sk=view+':col'+i})}
+  if(g){body.classList.add('vsplit');[...g.children].forEach((c,i)=>{c.dataset.sk=view+':col'+i})}
   if(view==='plan'&&['woche','tag','3tage'].includes(planMode())){body.classList.add('plansplit');
     body.querySelectorAll('.week>.col').forEach(c=>{c.dataset.sk='plan:'+c.dataset.dropDay});
     const b=body.querySelector('.backlog');if(b)b.dataset.sk='plan:backlog'}
